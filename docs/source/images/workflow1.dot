@@ -1,0 +1,42 @@
+digraph {
+DataSort [label="Define photon streams (single or multiparameter)\nbdata = hmm.BurstData(data)\l" shape="component"];
+calcmod [label="Optimize Models\nbdata.models.calc_models()\l" shape="component"];
+selmod [label="Select ideal model\nhmm.ICL_plot(bdata.models)\lbdata.models.ideal = 2\l" shape="component"];
+mkdiv [label="Make divisor scheme\nname = bdata.auto_div(1)\l" shape="component"];
+dcalmod [label="Optimize divisor models\nbdata.div_models[name].calc_models()\l" shape="component"];
+dselmod [label="Select divisor ideal model\nhmm.ICL_plot(bdata.div_modesl[name])\lbdata.div_models[name].ideal = 2\l" shape="component"];
+setirf [label="set IRF threshold\nhmm.raw_nanotime_hist(bdata)\lbdata.irf_thresh=np.array([2355, 2305, 220])\l" shape="component"];
+plotrat [label="FRET parmeters" shape="tab"];
+plotnn [label="nanotime parameters" shape="tab"];
+dplotrat [label="divisor\nFRET parmeters" shape="tab"];
+dplotnn [label="divisor\nnanotime parameters" shape="tab"];
+{rank=same; mkdiv; setirf;}
+{rank=same; plotrat; plotnn; dplotrat; dplotnn}
+DataSort -> calcmod;
+DataSort -> mkdiv;
+subgraph cluster0 {
+calcmod -> selmod;
+}
+selmod -> plotrat;
+selmod -> plotnn;
+
+subgraph cluster1 {
+mkdiv -> dcalmod;
+dcalmod -> dselmod;
+}
+
+subgraph cluster2{
+plotrat;
+plotnn;
+dplotrat;
+dplotnn;
+}
+dselmod -> dplotrat;
+dselmod -> dplotnn;
+
+DataSort -> setirf;
+setirf -> plotnn;
+setirf -> dplotnn;
+
+
+}

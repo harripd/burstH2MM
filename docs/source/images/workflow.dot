@@ -1,0 +1,34 @@
+digraph {
+DataSort [label="Define photon streams (single or multiparameter)\nbdata = hmm.BurstData(data)" shape="folder"];
+calcmod [label="Optimize Models\nbdata.models.calc_models()" shape="folder"];
+selmod [label="Select ideal model\nhmm.ICL_plot(bdata.models)\nbdata.models.ideal = 2" shape="component"];
+mkdiv [label="Make divisor scheme\nname = bdata.auto_div(1)" shape="folder"];
+dcalmod [label="Optimize divisor models\nbdata.div_models[name].calc_models()" shape="fodler"];
+dselmod [label="Select divisor ideal model\nhmm.ICL_plot(bdata.div_modesl[name])\nbdata.div_models[name].ideal = 2" shape="component"];
+setirf [label="set IRF threshold\nhmm.raw_nanotime_hist(bdata)\nbdata.irf_thresh=np.array([2355, 2305, 220])" shape="component"];
+plotrat [label="FRET parmeters" shape="tab"];
+plotnn [label="nanotime parameters" shape="tab"];
+dplotrat [label="divisor FRET parmeters" shape="tab"];
+dplotnn [label="divisor nanotime parameters" shape="tab"];
+DataSort -> calcmod;
+calcmod -> selmod;
+mkdiv -> dcalmod;
+DataSort -> mkdiv;
+dcalmod -> dselmod;
+DataSort -> setirf;
+selmod -> plotrat;
+selmod-> plotnn;
+setirf -> plotnn;
+dselmod -> dplotrat;
+dselmod -> dplotnn;
+setirf -> dplotnn;
+
+edge[style=invis];
+selmod -> mkdiv;
+selmod -> setirf;
+plotrat -> plotnn;
+
+{rank=same; setirf; mkdiv};
+{rank=same; plotnn; dplotnn};
+{rank=same; plotrat; dplotrat};
+}

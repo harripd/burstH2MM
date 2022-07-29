@@ -1,0 +1,31 @@
+digraph {
+rankdir = "LR";
+node [shape = "elipse"];
+edge [];
+bdata [label="BurstData | <f0> models | <f1> div_models | <f2> times | <f3> nanos" shape="record"];
+mdls [label="<f0> H2MM_list | <f1> opts | <f2> index" shape="record"];
+mdlst [label="<f0> [opts](list) | <f1> 1 State | 2 State | ..." shape="record"];
+mdlrs [label="<f0> H2MM_result | H2MM model | state path | dwell analysis" shape="record"];
+dvdct [label="<f0> [div_models](dict) | <f1> Scheme 1| Scheme 2 | ... " shape="record"];
+dvls [label="<f0> H2MM_list | <f1> opts | <f2> index" shape="record"];
+dvlst [label="<f0> [opts](list) | <f1> 1 State | 2 State | ..." shape="record"];
+dvlrs [label="<f0> H2MM_result | H2MM model | state path | dwell analysis" shape="record"];
+macro [label="photon macrotimes" shape="octagon"];
+nano [label="photon nanotimes" shape="diamond"];
+midx [label="base photon indices" shape="octagon"];
+didx [label="divisor photon indices" shape="doubleoctagon"];
+bdata:f2 -> macro;
+bdata:f3 -> nano;
+bdata:f0 -> mdls:f0;
+bdata:f1 -> dvdct:f0;
+mdls:f1 -> mdlst:f0;
+mdls:f2 -> midx;
+mdlst:f1 -> mdlrs:f0;
+dvdct:f1 -> dvls:f0;
+dvls:f1 -> dvlst:f0;
+dvls:f2 -> didx;
+dvlst:f1 -> dvlrs:f0;
+{rank = same; mdls; dvls;}
+{rank = same; mdlst; dvlst}
+{rank = same; mdlrs; dvlrs}
+}

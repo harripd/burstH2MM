@@ -1,0 +1,49 @@
+digraph G{
+graph [compound=true]
+ranksep=1;
+subgraph cluster0{
+label="fretbursts.Data"
+photon_data -> bg_period;
+{photon_data, bg_period} -> mburst;
+{rank=same; photon_data; bg_period; mburst}
+}
+subgraph cluster1{
+label="BurstData"
+times;
+nanos;
+irf_thresh;
+}
+subgraph cluster2{
+label="H2MM_list";
+index;
+}
+{index, times} -> model;
+{photon_data, mburst} -> {times, index, nanos}
+
+
+subgraph cluster3{
+label="H2MM_result";
+
+subgraph cluster4{
+label="Viterbi Results";
+path;
+scale;
+}
+{model, times, index} -> {path, scale};
+path -> trans_locs;
+{path, nanos} -> nanohist;
+{path, trans_locs} -> dwell_state;
+{times, trans_locs} -> dwell_dur;
+{index, trans_locs} -> dwell_ph_counts -> {dwell_E, dwell_S};
+{index, nanos, trans_locs, dwell_state, irf_thresh} -> dwell_nano_mean;
+subgraph cluster5{
+label="Dwell base parameters"
+{bg_period, dwell_dur, dwell_ph_counts} -> dwell_ph_counts_bg -> {dwell_E_corr, dwell_S_corr};
+trans_locs -> {burst_dwell_num, dwell_pos};
+dwell_E;
+dwell_S;
+dwell_nano_mean;
+dwell_state;
+}
+}
+}
