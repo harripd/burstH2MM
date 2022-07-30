@@ -1,12 +1,15 @@
 Access the results of an optimization
--------------------------------------
+=====================================
+
+Accessing results
+-----------------
 
 |H2MM| is at its core an optimization algorithm.
 The underlying algorithm finds the most likely model for a predetermined number of states.
 It is the user who is responsible for comparing optimized models with different numbers of states and selecting the ideal model.
 
 .. note::
-    For this tutorial, we will assume the following code has been executed prior to all given code snippets::
+    For this tutorial, we will assume the following code has been executed prior to all given code snippets (this come from the :ref:`tutorial <tuthidden>`)::
 
         # import statements
         import numpy as np
@@ -29,6 +32,7 @@ It is the user who is responsible for comparing optimized models with different 
         frbdata_sel = frbdata.select_bursts(frb.select_bursts.size, th1=50)
         # now make the BurstData object
         bdata = hmm.BurstData(frbdata_sel)
+        bdata.models.calc_models()
 
 |calc_models| is designed to streamline this process, which optimizes models until the ideal model is found (it actually calculates one more than necessary because it must see that there is at least one model with too many models).
 
@@ -56,8 +60,8 @@ There are 2 primary discriminators:
 
 #. BIC: the Bayes Information Criterion
     - Based on the likelihood of the model over all possible paths through the data, usually found to always improve with more states, and therefore less usefull
-#. ICL: The integrated Complete Likelihood
-    - Based on the likelihood of the most likely path through the data for the model given the data, usually found to be minimized for the ideal model
+#. ICL: the Integrated Complete Likelihood
+   - Based on the likelihood of the most likely state path through the data. Usually is minimized for the ideal state-model, and therefore the prefered statistical discriminator to use.
 
 In both cases, the smaller the better.
 Since these are computed for each optimized model, each |H2MM_result| object (index of |H2MM_list|), has an attribute to get this value.
@@ -133,42 +137,133 @@ These are in s\ :sup:`-1`\  and teh organization is [from state, to state]. Noti
 Now |H2MM| also contains the *Viterbi* algorithm, which takes the data and optimized model, and finds the most likely state of each photon.
 burstH2MM continues to perform analysis on this state path to produce a number of usefull parameters to help understand the data.
 
+Table of attributes
+-------------------
 
-Bellow is a list and desciption of the different possible parameters and their descriptions.
+Below is a list and desciption of the different possible parameters and their descriptions.
 
-+----------------------+----------------------------------------------------------------+--------------+
-| Attribute            | Description                                                    | Type         |
-+----------------------+----------------------------------------------------------------+--------------+
-| |nanohist|           | Number of photons in each state and TCSPC bin                  | state stream |
-|                      |                                                                | nanotime     |
-|                      |                                                                | array        |
-+----------------------+----------------------------------------------------------------+--------------+
-| |trans_locs|         | The location of transitions with bursts                        | burst list   |
-+----------------------+----------------------------------------------------------------+--------------+
-| |burst_dwell_num|    | Duration of each dwell (in ms)                                 | dwell array  |
-+----------------------+----------------------------------------------------------------+--------------+
-| |dwell_state|        | The state of each dwell                                        | dwell array  |
-+----------------------+----------------------------------------------------------------+--------------+
-| |dwell_pos|          | Numerical indicator of location within the                     | dwell array  |
-|                      | burst of each dwell | dwell array                              |              |
-+----------------------+----------------------------------------------------------------+--------------+
-| |dwell_ph_counts|    | Number of photons in each stream and dwell                     | state dwell  |
-|                      |                                                                | array        |
-+----------------------+----------------------------------------------------------------+--------------+
-| |dwell_ph_counts_bg| | Background corrected number                                    | dwell state  |
-|                      | of photons in each stream and dwell                            | array        |
-+----------------------+----------------------------------------------------------------+--------------+
-| |dwell_E|            | Raw FRET efficiency (E\ :sup:`raw`\ ) of each dwell            | dwell array  |
-+----------------------+----------------------------------------------------------------+--------------+
-| |dwell_E_corr|       | Fully corrected FRET efficiency of each dwell (E)              | dwell array  |
-+----------------------+----------------------------------------------------------------+--------------+
-| |dwell_S|            | Raw stoichiometry (S\ :sup:`raw`\ ) of each dwell              | dwell array  |
-+----------------------+----------------------------------------------------------------+--------------+
-| |dwell_S_corr|       | Fully corrected stoichiometry of each dwell (S)                | dwell array  |
-+----------------------+----------------------------------------------------------------+--------------+
-| |dwell_nano_mean|    | Mean nanotime of each stream in each dwell                     | stream dwell |
-|                      |                                                                | array        |
-+----------------------+----------------------------------------------------------------+--------------+
++----------------------+----------------------------------------------------------------+---------------+
+| Attribute            | Description                                                    | Type          |
++----------------------+----------------------------------------------------------------+---------------+
+| |nanohist|           | Number of photons in each state and TCSPC bin                  | state stream  |
+|                      |                                                                | nanotime      |
+|                      |                                                                | array         |
++----------------------+----------------------------------------------------------------+---------------+
+| |trans_locs|         | The location of transitions with bursts                        | burst list    |
++----------------------+----------------------------------------------------------------+---------------+
+| |burst_dwell_num|    | Duration of each dwell (in ms)                                 | dwell array   |
++----------------------+----------------------------------------------------------------+---------------+
+| |dwell_state|        | The state of each dwell                                        | dwell array   |
++----------------------+----------------------------------------------------------------+---------------+
+| |dwell_pos|          | Numerical indicator of location within the                     | dwell array   |
+|                      | burst of each dwell | dwell array                              |               |
++----------------------+----------------------------------------------------------------+---------------+
+| |dwell_ph_counts|    | Number of photons in each stream and dwell                     | stream dwell  |
+|                      |                                                                | array         |
++----------------------+----------------------------------------------------------------+---------------+
+| |dwell_ph_counts_bg| | Background corrected number                                    | stream dwell  |
+|                      | of photons in each stream and dwell                            | array         |
++----------------------+----------------------------------------------------------------+---------------+
+| |dwell_E|            | Raw FRET efficiency (E\ :sup:`raw`\ ) of each dwell            | dwell array   |
++----------------------+----------------------------------------------------------------+---------------+
+| |dwell_E_corr|       | Fully corrected FRET efficiency of each dwell (E)              | dwell array   |
++----------------------+----------------------------------------------------------------+---------------+
+| |dwell_S|            | Raw stoichiometry (S\ :sup:`raw`\ ) of each dwell              | dwell array   |
++----------------------+----------------------------------------------------------------+---------------+
+| |dwell_S_corr|       | Fully corrected stoichiometry of each dwell (S)                | dwell array   |
++----------------------+----------------------------------------------------------------+---------------+
+| |dwell_nano_mean|    | Mean nanotime of each stream in each dwell                     | stream dwell  |
+|                      |                                                                | array         |
++----------------------+----------------------------------------------------------------+---------------+
+
+Meaning of "type" explainded in next section.
+
+Understanding dwell array organization
+--------------------------------------
+
+Data in dwell attributes (those that begin with "dwell") are orgnized into numpy arrays.
+As diagramed in the figure below, the dwells are placed in the same order that they in the data.
+This means the consecutive dwells indicate a transition from one state to another.
+However, when one bursts ends, it is generally unreasonable to consider the dwell in the next burst to be considered a transition.
+Hence, special consideration needs to be given for bursts at the start and end of bursts, as well as for bursts which contain only a single state, which is still counted as a dwell.
+Since these are still incldued in the dwell arrays, the position of a burst within a dwell is recorded in the |dwell_pos| paremeter.
+
+.. image:: images/dwellorg.png
+
+As seen, dwells in the middle of burst are marked with a 0 in |dwell_pos|, end with a 1, beginning with a 2 and bursts that span the whole dwell are marked with a 3.
+The size of |dwell_pos| and other dwell array parameters match, and therefore |dwell_pos| can be used to make masks to select only dwells in one of the possible positions.
+
+For instance if you want to get the E values of only dwells that are in the middle of bursts, excluding beginning, ending and whole burst dwells, you could execute the following::
+
+    mid_dwell_mask = bdata.models[2].dwell_pos == 0
+    mid_dwell_E = bdata.models[2].dwell_E[mid_dwell_mask]
+
+Now some of the dwell parameters have extra dimensions, like |dwell_nano_mean|, where the mean nanotime is calculate *per stream* in addition to *per dwell*.
+Therefore, it is a 2D array, with the last dimension marking the dwell.
+
+.. note::
+
+    Make sure to set the |irf_thresh| parameter before accessign |dwell_nano_mean|::
+
+        bdata.irf_thresh = np.array([2355, 2305, 220])
+
+So, to get the mean nanotimes of the mid-burst dwells, we would execute the following::
+
+     mid_dwell_mask = bdata.models[2].dwell_pos == 0
+     mid_dwell_nano_mean = bdata.models[2].dwell_nano_mean[:, mid_dwell_mask]
+
+Of course, you probably want to look at just on photon stream's nanomean, more often than not this will be the |DD| stream, which for this data is the 0th stream.
+So to get this we would execute the following::
+
+     mid_dwell_mask = bdata.models[2].dwell_pos == 0
+     mid_dwell_nano_mean_DD = bdata.models[2].dwell_nano_mean[0, mid_dwell_mask]
+
+You could also isolate a particular state using the |dwell_state| parameter to make another mask::
+
+     mid_dwell_mask = bdata.models[2].dwell_pos == 0
+     state1_mask = bdata.models[2].dwell_state == 1
+     comb_mask = mid_dwell_mask * state1_mask
+     state1_mid_nano_mean_DD = bdata.models[2].dwell_nano_mean[0, comb_mask]
+
+Thus you can have a great deal of customization.
+
+Example: Calcualte variance of state 1 dwell E values
+*****************************************************
+
+Let's put this into practice.
+Let's say you want to know how tightly a given state's dwell cluster around a given value.
+The steps would be simple:
+
+#. Make mask of dwells in that state
+#. Get E values of those dwells using mask
+#. Calculate standard deviation (or whatever other value is of interest)
+
+So lets see this in code:
+
+>>> # make mask of dwells in state 1
+>>> state1_mask = bdata.models[2].dwell_state == 1
+>>> # get E values
+>>> state1_E = bdata.models[2].dwell_E[state1_mask]
+>>> # calcualte standard deviation
+>>> np.nanstd(state1_E)
+0.1233685488891
+
+.. note::
+
+    We used np.nanstd, as dwells with no |DD| or |DA| photons will have nan values, so we must exclude them to get a result that is not nan
+
+.. _maskexplanation:
+
+Using masking functions to make masks
+*************************************
+
+burstH2MM also provides a set of masking functions in :mod:`burstH2MM.Masking`.
+They are named descriptively, and simply take a |H2MM_list| object as input.
+So we can get the mid dwell mask like this::
+
+    mid_dwell_mask = hmm.mid_dwell(bdata.models[2])
+
+These functions can be used to filter which dwells are shown in various plotting functions, which is their primary use in burstH2MM. See :ref:`dwellposplot` for a demonstration of thier use in plotting.
 
 .. |H2MM| replace:: H\ :sup:`2`\ MM
 .. |DD| replace:: D\ :sub:`ex`\ D\ :sub:`em`
@@ -178,13 +273,16 @@ Bellow is a list and desciption of the different possible parameters and their d
 .. |div_models| replace:: :attr:`BurstData.div_models <burstH2MM.BurstSort.BurstData.div_models>`
 .. |auto_div| replace:: :meth:`BurstData.auto_div() <burstH2MM.BurstSort.BurstData.auto_div>`
 .. |new_div| replace:: :meth:`BurstData.new_div() <burstH2MM.BurstSort.BurstData.new_div>`
+.. |irf_thresh| replace:: :attr:`BurstData.irf_thresh <burstH2MM.BurstSort.BurstData.irf_thresh>`
 .. |H2MM_list| replace:: :class:`H2MM_list <burstH2MM.BurstSort.H2MM_list>`
+.. |divisor_scheme| replace:: :attr:`H2MM_list.divisor_scheme <burstH2MM.BurstSort.H2MM_list.divisor_scheme>`
 .. |list_bic| replace:: :attr:`H2MM_list.BIC <burstH2MM.BurstSort.H2MM_list.BIC>`
 .. |list_bicp| replace:: :attr:`H2MM_list.BICp <burstH2MM.BurstSort.H2MM_list.BICp>`
 .. |list_icl| replace:: :attr:`H2MM_list.ICL <burstH2MM.BurstSort.H2MM_list.ICL>`
 .. |calc_models| replace:: :meth:`H2MM_list <burstH2MM.BurstSort.H2MM_list.calc_models>`
 .. |opts| replace:: :attr:`H2MM_list.opts <burstH2MM.BurstSort.H2MM_list.opts>`
 .. |H2MM_result| replace:: :class:`H2MM_result <burstH2MM.BurstSort.H2MM_result>`
+.. |trim_data| replace:: :meth:`H2MM_result.trim_data() <burstH2MM.BurstSort.H2MM_result.trim_data>`
 .. |model_E| replace:: :attr:`H2MM_result.E <burstH2MM.BurstSort.H2MM_result.E>`
 .. |model_E_corr| replace:: :attr:`H2MM_result.E_corr <burstH2MM.BurstSort.H2MM_result.E_corr>`
 .. |model_S| replace:: :attr:`H2MM_result.S <burstH2MM.BurstSort.H2MM_result.S>`
@@ -209,3 +307,4 @@ Bellow is a list and desciption of the different possible parameters and their d
 .. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <burstH2MM.Plotting.dwell_ES_scatter>`
 .. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <burstH2MM.Plotting.dwell_tau_hist>`
 .. |dwell_E_hist| replace:: :func:`dwell_E_hist() <burstH2MM.Plotting.dwell_E_hist>`
+.. |raw_nanotime_hist| replace:: :func:`raw_nanotime_hist <burstH2MM.Plotting.raw_nanotime_hist>`

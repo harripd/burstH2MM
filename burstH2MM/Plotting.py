@@ -25,6 +25,8 @@ import fretbursts as frb
 import seaborn as sns
 from . import BurstSort
 
+#: defaults for colors of streams
+_color_dict = {frb.Ph_sel(Dex="Dem"):'g', frb.Ph_sel(Dex="Aem"):'r', frb.Ph_sel(Aex="Aem"):'purple'}
 
 def _useideal(func):
     @functools.wraps(func)
@@ -270,12 +272,24 @@ def _make_dwell_pos(model, dwell_pos):
     """
     if dwell_pos is None:
         pos_mask = np.ones(model.dwell_pos.shape, dtype=bool)
-    elif type(dwell_pos) in (np.ndarray, list, tuple):
+    elif isinstance(dwell_pos, (list, tuple)):
         pos_mask = np.sum([model.dwell_pos == i for i in dwell_pos], axis=0) > 0
-    elif type(dwell_pos) == int:
+    elif isinstance(dwell_pos, int):
         pos_mask = model.dwell_pos == dwell_pos
-    else:
+    elif isinstance(dwell_pos, np.ndarray):
+        if dwell_pos.dtype == bool:
+            if model.dwell_pos.size == dwell_pos.size:
+                pos_mask = dwell_pos
+            else:
+                raise ValueError(f'dwell_pos inorrect size, got {dwell_pos.size}, expected {model.dwell_pos.size}')
+        elif dwell_pos.dtype == int:
+            if dwell_pos.max() > model.model.nstate:
+                raise ValueError(f'dwell_pos includes non-exitstent states, model has only {model.model.nstate} states')
+            pos_mask = np.sum([model.dwell_pos == i for i in dwell_pos], axis=0) > 0
+    elif callable(dwell_pos):
         pos_mask = dwell_pos(model)
+    else:
+        raise TypeError('Invalid dwell_pos type')
     return pos_mask
 
 # global mapping param type to iterator generating function    
@@ -349,7 +363,6 @@ def axline_E(model, ax=None, add_corrections=False, horizontal=False, state_kwar
 
     """
     ax = _check_ax(ax)
-    
     axline = ax.axhline if horizontal else ax.axvline
     E  = model.E_corr if add_corrections else model.E
     if state_kwargs is None:
@@ -455,7 +468,9 @@ def dwell_param_hist(model, param, streams=None, dwell_pos=None, states=None,
 
     Returns
     -------
-    None.
+    collections : list[list[matplotlib.container.BarContainer]]
+        list of lists of bar containers produced by the ax.hist 
+        organized as [states][streams]
 
     """
     if param not in model.dwell_params:
@@ -474,14 +489,17 @@ def dwell_param_hist(model, param, streams=None, dwell_pos=None, states=None,
     in_kwargs = kwargs.copy()
     if model.dwell_params[param] in bin_style:
         in_kwargs.update({'bins':bin_style[model.dwell_params[param]]})
+    collections = list()
     for i, skwargs in zip(states, kwarg_arr):
         mask = (state==i) * pos_mask
+        collections.append(list())
         for j, param_s in enumerate(param_func(param_n, mask, streams, model.parent.parent.ph_streams)):
             new_kwargs = in_kwargs.copy()
             new_kwargs.update(skwargs[j])
-            ax.hist(param_s, **new_kwargs)
+            collections[i].append(ax.hist(param_s, **new_kwargs)[2])
     ax.set_xlabel(model.param_labels[param], **label_kwargs)
     ax.set_ylabel("counts", **label_kwargs)
+    return collections
 
 
 @_useideal
@@ -536,7 +554,9 @@ def dwell_params_scatter(model, paramx, paramy, states=None, state_kwargs=None, 
 
     Returns
     -------
-    None.
+    collections : list[list[matplotlib.collections.PathCollection]]
+        List of lists of matplotlib PathCollections return by ax.scatter
+        Organized as [state][streams]
 
     """
     if paramx not in model.dwell_params:
@@ -560,19 +580,23 @@ def dwell_params_scatter(model, paramx, paramy, states=None, state_kwargs=None, 
     state = model.dwell_state
     in_kwargs = dict(s=10, alpha=0.8)
     in_kwargs.update(kwargs)
+    collections = list()
     for i, skwargs in zip(states, kwarg_arr):
         mask = (state==i) * pos_mask
         paramx_sort = paramx_func(paramx_n, mask, streams, model.parent.parent.ph_streams)
         paramx_sort = cycle(paramx_sort) if rpt[0] else paramx_sort
         paramy_sort = paramy_func(paramy_n, mask, streams, model.parent.parent.ph_streams)
         paramy_sort = cycle(paramy_sort) if rpt[1] else paramy_sort
+        collections.append(list())
         for j, (paramx_s, paramy_s) in enumerate(zip(paramx_sort, paramy_sort)):
             new_kwargs = in_kwargs.copy()
             new_kwargs.update(skwargs[j])
-            ax.scatter(paramx_s, paramy_s, **new_kwargs)
+            collection = ax.scatter(paramx_s, paramy_s, **new_kwargs)
+            collections[-1].append(collection)
     ax.set_xlabel(model.param_labels[paramx], **label_kwargs)
     ax.set_ylabel(model.param_labels[paramy], **label_kwargs)
-    
+    return collections
+
 
 @_useideal
 def dwell_param_transition_kde_plot(model, param, include_edge=True, ax=None, 
@@ -657,7 +681,7 @@ def dwell_param_transition(model, param, include_edge=True, plt_type="scatter", 
 
     Parameters
     ----------
-    model : H2MM_result
+    model : H2MM_result or H2MM_list
         Source of data.
     param : str
         Name of parameter to be plotted .
@@ -709,7 +733,9 @@ def dwell_param_transition(model, param, include_edge=True, plt_type="scatter", 
 
     Returns
     -------
-    None.
+    collections : list[list[list[matplotlib.collections.PathCollection or matplotlib.axes._subplots.AxesSubplot]]]
+        The collections or axes returned by each call to ax.scatter or sns.kdeplot
+        organized [from_state][to_state][stream]
 
     """
     ex_par = {"dwell_pos", "dwell_state"}
@@ -779,10 +805,13 @@ def dwell_param_transition(model, param, include_edge=True, plt_type="scatter", 
     dummy_mask = np.ones(state_arr.size, dtype=bool)
     new_kwargs = dict(s=10, alpha=0.8)
     new_kwargs.update(kwargs)
+    collections = list()
     for i, stf in enumerate(from_state):
+        collections.append(list())
         for j, stt in enumerate(to_state):
             if not trans_mask[i,j]:
                 continue
+            collections[-1].append(list())
             for k, param_s in enumerate(pfunc(param_n, dummy_mask, streams, model.parent.parent.ph_streams)):
                 in_kwargs = new_kwargs.copy()
                 in_kwargs.update(kwarg_arr[i][j][k])
@@ -790,15 +819,17 @@ def dwell_param_transition(model, param, include_edge=True, plt_type="scatter", 
                 param_x = param_s[:-1][mask]
                 param_y = param_s[1:][mask]
                 if is_scatter:
-                    ax.scatter(param_x, param_y, **in_kwargs)
+                    collection = ax.scatter(param_x, param_y, **in_kwargs)
                 else:
-                    sns.kdeplot(x=param_x, y=param_y, ax=ax,**in_kwargs)
+                    collection = sns.kdeplot(x=param_x, y=param_y, ax=ax,**in_kwargs)
+                collections[-1][-1].append(collection)
     ax.set_xlabel(model.param_labels[param])
     ax.set_ylabel(model.param_labels[param])
+    return collections
 
 
 def dwell_E_hist(model, ax=None, add_corrections=False, states=None, state_kwargs=None, 
-                 label_kwargs=None, **kwargs):
+                 label_kwargs=None, dwell_pos=None,**kwargs):
     """
     Plot histogram of dwell FRET efficiency per state
 
@@ -819,21 +850,30 @@ def dwell_E_hist(model, ax=None, add_corrections=False, states=None, state_kwarg
         The default is None.
     label_kwargs : dict, optional
         Keyword arguments to pass to ax.label. The default is None
+    dwell_pos : int, list, tuple, numpy array or mask_generating callable, optional
+        Which dwell position(s) to include.If None, do not filter by burst position.
+        The default is None.
+    
     **kwargs : dict
         Universal kwargs for ax.hist.
 
     Returns
     -------
-    None.
+    collections : list[matplotlib.container.BarContainer]
+        list of bar containers produced by the ax.hist 
 
     """
     in_kwargs = kwargs.copy()
     in_kwargs.update({'alpha':0.5})
     E = 'dwell_E_corr' if add_corrections else 'dwell_E'
-    dwell_param_hist(model, E, states=states, state_kwargs=state_kwargs, label_kwargs=label_kwargs, **in_kwargs)
+    collections = dwell_param_hist(model, E, states=states, state_kwargs=state_kwargs, 
+                                   label_kwargs=label_kwargs, dwell_pos=dwell_pos, **in_kwargs)
+    # move lists of streams (not applicable to E)
+    collections = [collection[0] for collection in collections]
+    return collections
 
 def dwell_S_hist(model, ax=None, states=None, state_kwargs=None,add_corrections=False, 
-                 label_kwargs=None, **kwargs):
+                 label_kwargs=None, dwell_pos=None, **kwargs):
     """
     Plot histogram of dwell stoichiometry per state
 
@@ -854,21 +894,30 @@ def dwell_S_hist(model, ax=None, states=None, state_kwargs=None,add_corrections=
         The default is None.
     label_kwargs : dict, optional
         Keyword arguments to pass to ax.label. The default is None
+    dwell_pos : int, list, tuple, numpy array or mask_generating callable, optional
+        Which dwell position(s) to include.If None, do not filter by burst position.
+        The default is None.
     **kwargs : dict
         Universal kwargs for ax.hist.
 
     Returns
     -------
-    None.
+    collections : list[matplotlib.container.BarContainer]
+        list of lists of bar containers produced by the ax.hist 
+        organized as [states][streams]
 
     """
     in_kwargs = kwargs.copy()
     in_kwargs.update({'alpha':0.5})
     S = "dwell_S_corr" if add_corrections else "dwell_S"
-    dwell_param_hist(model, S, state_kwargs=state_kwargs, label_kwargs=label_kwargs,**in_kwargs)
+    collections = dwell_param_hist(model, S, state_kwargs=state_kwargs, label_kwargs=label_kwargs, 
+                                   dwell_pos=dwell_pos, **in_kwargs)
+    collections = [collection[0] for collection in collections]
+    return collections
 
 def dwell_tau_hist(model, ax=None, streams=[frb.Ph_sel(Dex="Dem"), ], states=None, state_kwargs=None, 
-                  stream_kwargs=None, label_kwargs=None, kwarg_arr=None, **kwargs):
+                  stream_kwargs=None, label_kwargs=None, dwell_pos=None, 
+                  kwarg_arr=None, **kwargs):
     """
     Plot histograms of mean nanotimes of each state. Default is to plot only 
     D\ :sub:`ex`\ D\ :sub:`em`\  stream.
@@ -892,6 +941,9 @@ def dwell_tau_hist(model, ax=None, streams=[frb.Ph_sel(Dex="Dem"), ], states=Non
         The default is None.
     label_kwargs : dict, optional
         Keyword arguments to pass to ax.label. The default is None
+    dwell_pos : int, list, tuple, numpy array or mask_generating callable, optional
+        Which dwell position(s) to include.If None, do not filter by burst position.
+        The default is None.
     kwarg_arr : array of kwargs dicts, optional
         Array of dicts to use as kwargs for specific combinations of states/streams
         in data. Cannot be specified at same time as state_kwargs. If 2D, then will
@@ -902,16 +954,21 @@ def dwell_tau_hist(model, ax=None, streams=[frb.Ph_sel(Dex="Dem"), ], states=Non
 
     Returns
     -------
-    None.
+    collections : list[list[matplotlib.container.BarContainer]]
+        list of lists of bar containers produced by the ax.hist 
+        organized as [states][streams]
 
     """
     in_kwargs = kwargs.copy()
     in_kwargs.update({'alpha':0.5})
-    dwell_param_hist(model, "dwell_nano_mean", streams=streams, states=states, state_kwargs=state_kwargs, 
-                     stream_kwargs=stream_kwargs, label_kwargs=label_kwargs, kwarg_arr=kwarg_arr, **in_kwargs)
+    collections = dwell_param_hist(model, "dwell_nano_mean", streams=streams, states=states, 
+                                   state_kwargs=state_kwargs, stream_kwargs=stream_kwargs, 
+                                   label_kwargs=label_kwargs, dwell_pos=dwell_pos, 
+                                   kwarg_arr=kwarg_arr, **in_kwargs)
+    return collections
 
 def dwell_ES_scatter(model, ax=None, states=None, state_kwargs=None, add_corrections=False, 
-                     label_kwargs=None, **kwargs):
+                     label_kwargs=None, dwell_pos=None, **kwargs):
     """
     Dwell based ES scatter plot
 
@@ -932,25 +989,31 @@ def dwell_ES_scatter(model, ax=None, states=None, state_kwargs=None, add_correct
         The default is False.
     label_kwargs : dict, optional
         Keyword arguments to pass to ax.label. The default is None
+    dwell_pos : int, list, tuple, numpy array or mask_generating callable, optional
+        Which dwell position(s) to include.If None, do not filter by burst position.
+        The default is None.
     **kwargs : dict
         Universal kwargs for ax.hist.
 
     Returns
     -------
-    None.
+    collections : list[matplotlib.collections.PathCollection]
+        List of matplotlib PathCollections return by ax.scatter
 
     """
     in_kwargs = dict(s=10, alpha=0.7)
     in_kwargs.update(kwargs)
     E = 'dwell_E_corr' if add_corrections else 'dwell_E'
     S = "dwell_S_corr" if add_corrections else "dwell_S"
-    dwell_params_scatter(model, E, S, ax=ax, states=states, state_kwargs=state_kwargs, 
-                         label_kwargs=label_kwargs,**in_kwargs)
+    collections = dwell_params_scatter(model, E, S, ax=ax, states=states, state_kwargs=state_kwargs, 
+                                       label_kwargs=label_kwargs, dwell_pos=dwell_pos, **in_kwargs)
+    collections = [collection[0] for collection in collections]
+    return collections
     
 
 def dwell_E_tau_scatter(model, ax=None, add_corrections=False, streams=[frb.Ph_sel(Dex="Dem"), ], 
                         states=None, state_kwargs=None, stream_kwargs=None, label_kwargs=None, 
-                        kwarg_arr=None, **kwargs):
+                        dwell_pos=None, kwarg_arr=None, **kwargs):
     """
     E-tau_D scatter plot
 
@@ -976,6 +1039,9 @@ def dwell_E_tau_scatter(model, ax=None, add_corrections=False, streams=[frb.Ph_s
         The default is None.
     label_kwargs : dict, optional
         Keyword arguments to pass to ax.label. The default is None
+    dwell_pos : int, list, tuple, numpy array or mask_generating callable, optional
+        Which dwell position(s) to include.If None, do not filter by burst position.
+        The default is None.
     kwarg_arr : array of kwargs dicts, optional
         Array of dicts to use as kwargs for specific combinations of states/streams
         in data. Cannot be specified at same time as state_kwargs. If 2D, then will
@@ -986,13 +1052,17 @@ def dwell_E_tau_scatter(model, ax=None, add_corrections=False, streams=[frb.Ph_s
 
     Returns
     -------
-    None.
+    collections : list[list[matplotlib.collections.PathCollection]]
+        List of lists of matplotlib PathCollections return by ax.scatter
+        Organized as [state][streams]
 
     """
     E = 'dwell_E_corr' if add_corrections else 'dwell_E'
-    dwell_params_scatter(model, "dwell_nano_mean", E, ax=ax, streams=streams, 
-                         state_kwargs=state_kwargs, stream_kwargs=stream_kwargs, 
-                         label_kwargs=label_kwargs, kwarg_arr=kwarg_arr, **kwargs)
+    collections = dwell_params_scatter(model, "dwell_nano_mean", E, ax=ax, streams=streams, 
+                                       state_kwargs=state_kwargs, stream_kwargs=stream_kwargs, 
+                                       label_kwargs=label_kwargs, dwell_pos=dwell_pos, 
+                                       kwarg_arr=kwarg_arr, **kwargs)
+    return collections
 
 
 def _stat_disc_plot(model_list, param, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwargs):
@@ -1169,6 +1239,7 @@ def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, **kwargs)
 
     """
     ax = _check_ax(ax)
+    
     # check main kwargs are all compatible/correct
     if streams is None:
         streams = data.ph_streams
@@ -1188,10 +1259,12 @@ def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, **kwargs)
     hists = [np.bincount(nanos[index==idx], minlength=data.data.nanotimes_params[0]['tcspc_num_bins']) for idx in stream_id]
     nanotime_bin = np.arange(data.data.nanotimes_params[0]['tcspc_num_bins'])
     collections = list()
-    for hist, stream, s_kwargs in zip(hists, streams,stream_kwargs):
+    for hist, stream, s_kwargs in zip(hists, streams, stream_kwargs):
         in_kwargs = kwargs.copy()
         # add label name to kwarg dictionary
         in_kwargs.update({'label':stream.__str__()})
+        if 'c' not in s_kwargs or 'color' not in s_kwargs or 'c' not in kwargs or 'color' not in kwargs:
+            in_kwargs.update({'color':_color_dict[stream]})
         in_kwargs.update(s_kwargs)
         collection = ax.plot(nanotime_bin, hist, **in_kwargs)
         collections.append(collection)
@@ -1199,3 +1272,93 @@ def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, **kwargs)
     ax.set_xlabel("nanotime bin")
     ax.set_ylabel("counts")
     return collections, leg
+
+def axline_irf_thresh(data, horizontal=False, stream_kwargs=None, ax=None, **kwargs):
+    """
+    Plot lines indicating the positions of the IRF threshholds
+
+    Parameters
+    ----------
+    data : BurstData
+        The BurstData for which to show the IRF threshholds.
+    horizontal : bool, optional
+        Plot the lines vertiaclly (False) or horizontally (True).
+        The default is False.
+    stream_kwargs : list[dict], optional
+        List of kewyord arguments to pass the axvline or axhline per stream.
+        The default is None.
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    **kwargs : dict
+        Keyword arguments to pass to axvline or axhline.
+
+    Raises
+    ------
+    ValueError
+        Incorrect format for stream_kwargs, most likely due to length.
+
+    Returns
+    -------
+    lines : list[matplotlib.lines.Line2D]
+        List of Lines returned by ax.axvline
+
+    """
+    ax = _check_ax(ax)
+    axline = ax.axhline if horizontal else ax.axvline
+    if stream_kwargs is None:
+        if 'c' not in kwargs or 'color' not in kwargs:
+            stream_kwargs = (_update_ret(kwargs, {'color':_color_dict[sel]}) for sel in data.ph_streams)
+        else:
+            stream_kwargs = repeat(kwargs)
+    elif len(stream_kwargs) != data.nstream:
+        raise ValueError(f"stream_kwargs must have the same number of elements as photon streams in data, got {len(stream_kwargs)} and {len(data.ph_streams)}")
+    else:
+        stream_kwargs = (_update_ret(kwargs, kw) for kw in stream_kwargs)
+    lines = [axline(irf, **kw) for irf, kw in zip(data.irf_thresh, stream_kwargs)]
+    return lines
+
+
+def axline_divs(model_list, horizontal=False, stream_kwargs=None, ax=None, **kwargs):
+    """
+    Plot lines indicating the positions of divisors for the given H2MM_list with
+    a divisor scheme
+
+    Parameters
+    ----------
+    model_list : H2MM_list
+        The H2MM_list for which to show positions of the divisors
+    horizontal : bool, optional
+        Plot the lines vertiaclly (False) or horizontally (True).
+        The default is False.
+    stream_kwargs : list[dict], optional
+        List of kewyord arguments to pass the axvline or axhline per stream.
+        The default is None.
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    **kwargs : dict
+        Keyword arguments to pass to axvline or axhline.
+
+    Raises
+    ------
+    ValueError
+        Incorrect format for stream_kwargs, most likely due to length.
+
+    Returns
+    -------
+    lines : list[list[matplotlib.lines.Line2D]]
+        List of lists of Lines returned by ax.axvline
+
+    """
+    ax = _check_ax(ax)
+    axline = ax.axhline if horizontal else ax.axvline
+    if stream_kwargs is None:
+        if 'c' not in kwargs or 'color' not in kwargs:
+            stream_kwargs = (_update_ret(kwargs, {'color':_color_dict[sel]}) for sel in model_list.parent.ph_streams)
+        else:
+            stream_kwargs = repeat(kwargs)
+    elif len(stream_kwargs) != model_list.parent.nstream:
+        raise ValueError(f"stream_kwargs must have the same number of elements as photon streams in data, got {len(stream_kwargs)} and {len(model_list.parent.ph_streams)}")
+    else:
+        stream_kwargs = (_update_ret(kwargs, kw) for kw in stream_kwargs)
+    lines = [[axline(dv, **kw) for dv in div] for div, kw in zip(model_list.divisor_scheme, stream_kwargs)]
+    return lines

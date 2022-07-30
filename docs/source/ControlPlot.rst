@@ -1,11 +1,10 @@
+.. _controlplot:
+
 Control plotting functions
 ==========================
 
-Customizing state plotting
---------------------------
-
 .. note::
-    For this tutorial, we will assume the following code has been executed prior to all given code snippets::
+    For this tutorial, we will assume the following code has been executed prior to all given code snippets (this come from the :ref:`tutorial <tuthidden>`)::
 
         # import statements
         import numpy as np
@@ -30,6 +29,10 @@ Customizing state plotting
         bdata = hmm.BurstData(frbdata_sel)
         bdata.models.calc_models()
 
+
+Customizing state plotting
+--------------------------
+
 The central plotting functions of burstH2MM are all highly customizable.
 
 The first and simplest form of customization is using the `ax` keyword argument, which is universal to all plotting functions.
@@ -43,7 +46,49 @@ So here's an example, and we'll set the title of the axes afterward::
     hmm.dwell_ES_scatter(bdata.models[2], ax=ax)
     ax.set_title("Dwell Based Results")
 
+
 .. image:: images/dwellES55.png
+
+
+For E and S based parameters, there is the option to use the raw values (calcualted from the photons alone), or the values corrected for the values set for leakage, direct excitation, gamma and beta **that have been set in the fretbursts.Data** object used to create the |BurstData| object that you are working on.
+For dwell based parameters, corrections for background are also applied.
+
+This is done quite simply using the `add_correactions` keyword argument::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    # add correction factors (determine for your own setup)
+    bdata.data.leakage = 0.0603
+    bdata.data.dir_ex = 0.0471
+    bdata.data.gamma = 1.8
+    bdata.data.beta = 0.69
+    #note the addition of add_corrections=True
+    hmm.dwell_ES_scatter(models[2], add_corrections=True, ax=ax)
+    # set limits on the values, since with corrections, some dwells with
+    # few photons in a stream will have extreme values
+    ax.set_xlim([-0.2, 1.2])
+    ax.set_ylim([-0.2, 1.2])
+
+
+.. image:: images/dwellESscatter_corr.png
+
+
+.. note::
+    See the :ref:`datacreation` section to understand how, and most importantly **when** parameters are calcualted
+    Make sure that your leakage, dir_ex, gamma and beta values are set **before** you try to plot or otherwise access any dwell value that involves correcting for these factors.
+    If you want to recalculate, that is possible, use the |trim_data| method on your |H2MM_result| object to clear the value::
+
+        bdata.models[2].trim_data()
+
+        fig, ax = plt.subplots(figsize=(5,5))
+        # add correction factors (determine for your own setup)
+        bdata.data.leakage = 0.0603
+        bdata.data.dir_ex = 0.0471
+        bdata.data.gamma = 1.8
+        bdata.data.beta = 0.69
+        #note the addition of add_corrections=True
+        hmm.dwell_ES_scatter(models[2], add_corrections=True, ax=ax)
+
+    This will ensure that the values are recalculated with the proper correction factors.
 
 .. _by_state:
 
@@ -216,22 +261,100 @@ In `kwarg_arr`, you provide an array of dictionaries that will be the keyword ar
     As such, if `kwarg_arr` and `state_kwargs` cannot be specified at the same time.
     If `stream_kwargs` is specified at the same time as `kwarg_arr`, then burstH2MM will make a check.
     If `kwarg_arr` is formated like `state_kwargs`, then it will be treated like `state_kwargs`.
-    On the other hand, if it is formated as demosntrated bellow, `stream_kwargs` will be ignored, and a warning will be presented.
+    On the other hand, if it is formated as demosntrated below, `stream_kwargs` will be ignored, and a warning will be presented.
 
 ::
 
     fig, ax = plt.subplots(figsize=(6, 4))
-    kwarr = [[{'color':'g', 'label':'State 0, DexDem'}, 
-              {'color':'darkgreen', 'label':'State 0, DexDem'}], 
-             [{'color':'r', 'label':'State 1, DexDem'}, 
-              {'color':'darkred', 'label':'State1, DexAem'}], 
-             [{'color':'b', 'label':'State 2, DexDem'}, 
+    kwarr = [[{'color':'g', 'label':'State 0, DexDem'},
+              {'color':'darkgreen', 'label':'State 0, DexDem'}],
+             [{'color':'r', 'label':'State 1, DexDem'},
+              {'color':'darkred', 'label':'State1, DexAem'}],
+             [{'color':'b', 'label':'State 2, DexDem'},
               {'color':'darkblue', 'label':'State2, DexAem'}]]
     hmm.dwell_tau_hist(models[2], ax=ax, kwarg_arr=kwarr, streams=[frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Aex="Aem")])
     ax.legend()
 
+.. image:: images/dwellnanomeankwarr.png
 
 So `kwarg_arr` allows the most customization, but is also the longest to define.
+
+.. _dwellposplot:
+
+Plotting only dwells of certain position and other masking
+----------------------------------------------------------
+
+Dwell based plotting functions also include the `dwell_pos` keyword arguments.
+This arguments allows the user to filter which dwells are plotted, not by state, but by the position (middle of the burst, start, stop or whole), and in its most advanced useage, by any user defined criterion.
+There are several possible types of inputs to `dwell_pos`, but the most easily understood is by using one of the :mod:`Masking <burstH2MM.Masking>` functions (see :ref:`maskexplanation` ).
+
+So let's see `dwell_pos` in action::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    # plot only dwells in the middle of a burst
+    hmm.dwell_ES_scatter(models[2], dwell_pos=hmm.mid_dwell, ax=ax)
+
+.. image:: images/dwellscatterESmiddwell.png
+
+.. note::
+
+    Functions handed to `dwell_pos` must accept a |H2MM_result| object as input, and return a mask of dwells
+
+
+You will note many fewer points, as there are many beginning, ending and whole burst dwells removed.
+
+It is also possible to specify dwells by specifying `dwell_pos` as an integer cooresponding to the dwell position code used in the similarly named |dwell_pos| parameter.
+
+So to select the mid dwells, we give it 0::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    # plot only dwells in the middle of a burst
+    hmm.dwell_ES_scatter(models[2], dwell_pos=1, ax=ax)
+
+.. image:: images/dwellscatterESd0.png
+
+And to select the beginning of bursts::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    # plot only dwells in the middle of a burst
+    hmm.dwell_ES_scatter(models[2], dwell_pos=2, ax=ax)
+
+.. image:: images/dwellscatterESd2.png
+
+It is also possible to select multiple types of dwells by using an array of all interested codes::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    # make array of code selections (beginning and whole burst dwells)
+    pos_sel = np.array([2,3])
+    # plot the selection
+    hmm.dwell_ES_scatter(models[2], dwell_pos=pos_sel, ax=ax)
+
+.. image:: images/dwellscatterESd23.png
+
+Another method is to provide a mask of all the dwells, for example, all dwells with a stoichiometry greater than some threshold::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    # make mask of dwells with stoichiometry greater than 0.5
+    dwell_mask = models[2].dwell_S > 0.5
+    # plt with a mask
+    hmm.dwell_ES_scatter(models[2], dwell_pos=dwell_mask, ax=ax)
+    # ensure full S range is plotted
+    ax.set_ylim([0,1])
+
+.. image:: images/dwellscatterESgtS.png
+
+Now the previous example plots a selection that is not very useful, however, what if we want to exclude dwells with fewer than a certian number of photons?
+Well, you could use |dwell_ph_counts| to make a mask, but there is one :mod:`Masking <burstH2MM.Masking>` function that is different from the others, and will not work direclty as an input to `dwell_pos`: this is :func:`dwell_size() <burstH2MM.Masking.dwell_size>` which needs at least a minimum number of photons as input.
+So here, we will employ a Python `lambda` function::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    # plot with lambda function, sets ph_min at 10
+    hmm.dwell_ES_scatter(models[2], dwell_pos= lambda m: hmm.dwell_size(m, 10), ax=ax)
+
+.. image:: images/dwellscatterESsz10.png
+
+Thus you can hand functions that take |H2MM_result| object as input, and returns a mask as output to select dwells based on whatever parameters you want.
+
 
 .. |H2MM| replace:: H\ :sup:`2`\ MM
 .. |DD| replace:: D\ :sub:`ex`\ D\ :sub:`em`
@@ -241,6 +364,7 @@ So `kwarg_arr` allows the most customization, but is also the longest to define.
 .. |div_models| replace:: :attr:`BurstData.div_models <burstH2MM.BurstSort.BurstData.div_models>`
 .. |auto_div| replace:: :meth:`BurstData.auto_div() <burstH2MM.BurstSort.BurstData.auto_div>`
 .. |new_div| replace:: :meth:`BurstData.new_div() <burstH2MM.BurstSort.BurstData.new_div>`
+.. |irf_thresh| replace:: :attr:`BurstData.irf_thresh <burstH2MM.BurstSort.BurstData.irf_thresh>`
 .. |H2MM_list| replace:: :class:`H2MM_list <burstH2MM.BurstSort.H2MM_list>`
 .. |list_bic| replace:: :attr:`H2MM_list.BIC <burstH2MM.BurstSort.H2MM_list.BIC>`
 .. |list_bicp| replace:: :attr:`H2MM_list.BICp <burstH2MM.BurstSort.H2MM_list.BICp>`
@@ -248,6 +372,7 @@ So `kwarg_arr` allows the most customization, but is also the longest to define.
 .. |calc_models| replace:: :meth:`H2MM_list <burstH2MM.BurstSort.H2MM_list.calc_models>`
 .. |opts| replace:: :attr:`H2MM_list.opts <burstH2MM.BurstSort.H2MM_list.opts>`
 .. |H2MM_result| replace:: :class:`H2MM_result <burstH2MM.BurstSort.H2MM_result>`
+.. |trim_data| replace:: :meth:`H2MM_result.trim_data() <burstH2MM.BurstSort.H2MM_result.trim_data>`
 .. |model_E| replace:: :attr:`H2MM_result.E <burstH2MM.BurstSort.H2MM_result.E>`
 .. |model_E_corr| replace:: :attr:`H2MM_result.E_corr <burstH2MM.BurstSort.H2MM_result.E_corr>`
 .. |model_S| replace:: :attr:`H2MM_result.S <burstH2MM.BurstSort.H2MM_result.S>`
@@ -272,6 +397,8 @@ So `kwarg_arr` allows the most customization, but is also the longest to define.
 .. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <burstH2MM.Plotting.dwell_ES_scatter>`
 .. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <burstH2MM.Plotting.dwell_tau_hist>`
 .. |dwell_E_hist| replace:: :func:`dwell_E_hist() <burstH2MM.Plotting.dwell_E_hist>`
+.. |raw_nanotime_hist| replace:: :func:`raw_nanotime_hist <burstH2MM.Plotting.raw_nanotime_hist>`
+
 
 .. _plt_scatter: https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.scatter.html
 .. _mpl_ax: https://matplotlib.org/stable/api/axes_api.html#matplotlib.axes.Axes

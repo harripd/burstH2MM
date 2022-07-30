@@ -75,6 +75,7 @@ The `BurstData` object keeps track of all `H2MM_list` objects it creates, and li
 For `BurstData` there are two places where the child `H2MM_list` objects are kept.
 The first is in the `models` attribute, the second is in the `div_models` attribute. `models` only has one `H2MM_list` associated with it, while `div_models` is a dictionary. `models` serves as the main model, which identifies photons only by photon stream (i.e. |DD|, |DA|, or |AA|), and as such serves as the main |H2MM| optimization. `H2MM_list` objects stored in `div_models` use divisor schemes to use photon nanotimes to further distinguish different photon streams.
 
+.. _datacreation:
 
 On demand data creation
 ***********************
@@ -98,11 +99,68 @@ To know what needs to be calculated for a given parameter, follow the arrows bac
 Divisors
 --------
 
+.. note::
+    This section is closely related with the how to section :ref:`Customizing Divisors <divlochowto>`.
+    It will be useful to read them together.
+
+
 A more recent developemnt in |H2MM| is the integration of photon nanotimes into |H2MM| analysis.
-Basically, the indeces which used to be associated exclusively with detector and excitation window, to now also be defined by photon nanotime.
-If each nanotime received its own index, there would be too many for |H2MM| to properly analyze, so instead we use divisors to separate each excitation window into a several nanotime based indeces, many fewer than the raw nanotime bins would, and therefore making the optimization tractable for |H2MM|.
+The basic version of mp|H2MM| assigned photon indices only using the detector and excitation stream.
+With divisors, each of these streams an now be broken up into more indices by divisors.
+
+If each nanotime received its own index, there would be too many for |H2MM| to properly analyze, so instead we use divisors to separate each excitation window into several nanotime based indices, many fewer than the raw nanotime bins would, and therefore making the optimization tractable for mp|H2MM|.
+
+|auto_div| uses our even-division strategy to automatically assign what are hopefully sensible divisors.
+This however assumes that the underlying states have an at least somewhat equal population, and have a decay that is dominated by one exponential lifetime.
+If however you know that your system does not follow this pattern, you may want to consider |new_div| to use what you do know about your system to make a more sensible set of divisors.
+
+
+
+
+
+
+
 
 .. |H2MM| replace:: H\ :sup:`2`\ MM
 .. |DD| replace:: D\ :sub:`ex`\ D\ :sub:`em`
 .. |DA| replace:: D\ :sub:`ex`\ A\ :sub:`em`
 .. |AA| replace:: A\ :sub:`ex`\ A\ :sub:`em`
+.. |BurstData| replace:: :class:`BurstData <burstH2MM.BurstSort.BurstData>`
+.. |div_models| replace:: :attr:`BurstData.div_models <burstH2MM.BurstSort.BurstData.div_models>`
+.. |auto_div| replace:: :meth:`BurstData.auto_div() <burstH2MM.BurstSort.BurstData.auto_div>`
+.. |new_div| replace:: :meth:`BurstData.new_div() <burstH2MM.BurstSort.BurstData.new_div>`
+.. |irf_thresh| replace:: :attr:`BurstData.irf_thresh <burstH2MM.BurstSort.BurstData.irf_thresh>`
+.. |H2MM_list| replace:: :class:`H2MM_list <burstH2MM.BurstSort.H2MM_list>`
+.. |divisor_scheme| replace:: :attr:`H2MM_list.divisor_scheme <burstH2MM.BurstSort.H2MM_list.divisor_scheme>`
+.. |list_bic| replace:: :attr:`H2MM_list.BIC <burstH2MM.BurstSort.H2MM_list.BIC>`
+.. |list_bicp| replace:: :attr:`H2MM_list.BICp <burstH2MM.BurstSort.H2MM_list.BICp>`
+.. |list_icl| replace:: :attr:`H2MM_list.ICL <burstH2MM.BurstSort.H2MM_list.ICL>`
+.. |calc_models| replace:: :meth:`H2MM_list <burstH2MM.BurstSort.H2MM_list.calc_models>`
+.. |opts| replace:: :attr:`H2MM_list.opts <burstH2MM.BurstSort.H2MM_list.opts>`
+.. |H2MM_result| replace:: :class:`H2MM_result <burstH2MM.BurstSort.H2MM_result>`
+.. |trim_data| replace:: :meth:`H2MM_result.trim_data() <burstH2MM.BurstSort.H2MM_result.trim_data>`
+.. |model_E| replace:: :attr:`H2MM_result.E <burstH2MM.BurstSort.H2MM_result.E>`
+.. |model_E_corr| replace:: :attr:`H2MM_result.E_corr <burstH2MM.BurstSort.H2MM_result.E_corr>`
+.. |model_S| replace:: :attr:`H2MM_result.S <burstH2MM.BurstSort.H2MM_result.S>`
+.. |model_S_corr| replace:: :attr:`H2MM_result.S_corr <burstH2MM.BurstSort.H2MM_result.S_corr>`
+.. |model_trans| replace:: :attr:`H2MM_result.trans <burstH2MM.BurstSort.H2MM_result.trans>`
+.. |nanohist| replace:: :attr:`H2MM_result.nanohist <burstH2MM.BurstSort.H2MM_result.nanohist>`
+.. |dwell_pos| replace:: :attr:`H2MM_result.dwell_pos <burstH2MM.BurstSort.H2MM_result.dwell_pos>`
+.. |dwell_dur| replace:: :attr:`H2MM_result.dwell_dur <burstH2MM.BurstSort.H2MM_result.dwell_dur>`
+.. |dwell_state| replace:: :attr:`H2MM_result.dwell_state <burstH2MM.BurstSort.H2MM_result.dwell_state>`
+.. |dwell_ph_counts| replace:: :attr:`H2MM_result.dwell_ph_counts <burstH2MM.BurstSort.H2MM_result.dwell_ph_counts>`
+.. |dwell_ph_counts_bg| replace:: :attr:`H2MM_result.dwell_ph_counts_bg <burstH2MM.BurstSort.H2MM_result.dwell_ph_counts_bg>`
+.. |dwell_E| replace:: :attr:`H2MM_result.dwell_E <burstH2MM.BurstSort.H2MM_result.dwell_E>`
+.. |dwell_E_corr| replace:: :attr:`H2MM_result.dwell_E_corr <burstH2MM.BurstSort.H2MM_result.dwell_E_corr>`
+.. |dwell_S| replace:: :attr:`H2MM_result.dwell_S <burstH2MM.BurstSort.H2MM_result.dwell_S>`
+.. |dwell_S_corr| replace:: :attr:`H2MM_result.dwell_S_corr <burstH2MM.BurstSort.H2MM_result.dwell_S_corr>`
+.. |burst_dwell_num| replace:: :attr:`H2MM_result.burst_dwell_num <burstH2MM.BurstSort.H2MM_result.burst_dwell_num>`
+.. |dwell_nano_mean| replace:: :attr:`H2MM_result.dwell_nano_mean <burstH2MM.BurstSort.H2MM_result.dwell_nano_mean>`
+.. |trans_locs| replace:: :attr:`H2MM_result.trans_locs <burstH2MM.BurstSort.H2MM_result.trans_locs>`
+.. |result_bic| replace:: :attr:`H2MM_result.bic <burstH2MM.BurstSort.H2MM_result.bic>`
+.. |result_bicp| replace:: :attr:`H2MM_result.bicp <burstH2MM.BurstSort.H2MM_result.bicp>`
+.. |result_icl| replace:: :attr:`H2MM_result.icl <burstH2MM.BurstSort.H2MM_result.icl>`
+.. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <burstH2MM.Plotting.dwell_ES_scatter>`
+.. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <burstH2MM.Plotting.dwell_tau_hist>`
+.. |dwell_E_hist| replace:: :func:`dwell_E_hist() <burstH2MM.Plotting.dwell_E_hist>`
+.. |raw_nanotime_hist| replace:: :func:`raw_nanotime_hist <burstH2MM.Plotting.raw_nanotime_hist>`

@@ -310,8 +310,8 @@ def _complete_div(data, divs, streams):
 
     """
     n_divs = [np.concatenate([[stream[0]], div, [stream[1]]]) for stream, div in zip(_make_divs(data, streams), divs)]
-    assert np.all(np.concatenate([np.diff(div) > 0 for div in n_divs])), \
-        ValueError("Divs must be in asscending order and contained within excitation window")
+    if np.any(np.concatenate([np.diff(div) <= 0 for div in n_divs])):
+        raise ValueError("Divs must be in asscending order and contained within excitation window")
     return n_divs
         
 
@@ -739,9 +739,12 @@ class BurstData:
     """    
     def __init__(self, data, ph_streams=None, Aex_stream=None, Aex_shift=None,
                  irf_thresh=None, conserve_memory=False):
-        assert hasattr(data, 'mburst'), ValueError("Bursts not selected yet")
-        assert not Aex_shift or not data.lifetime, NotImplementedError("Aex_shift only for usALEX")
-        assert data.lifetime or irf_thresh is None, NotImplementedError("IRF threshold only for pulsed excitation")
+        if not hasattr(data, 'mburst'):
+            raise ValueError("Bursts not selected yet")
+        if Aex_shift and data.lifetime:
+            raise NotImplementedError("Aex_shift only for usALEX")
+        if not data.lifetime and irf_thresh is not None:
+            raise NotImplementedError("IRF threshold only for pulsed excitation")
         if ph_streams is None:
             if data.alternated:
                 ph_streams = (frb.Ph_sel(Dex="Dem"), 
@@ -866,8 +869,10 @@ class BurstData:
 
         """
         # check if all inputs are compatible/correct
-        assert self.__data.lifetime, NotImplementedError("Cannot use divisors with continuous wave excitation")
-        assert len(divs) == self.__nstream, ValueError("Incorrect number of streams for BurstData streams")
+        if not self.__data.lifetime:
+            raise NotImplementedError("Cannot use divisors with continuous wave excitation")
+        if len(divs) != self.__nstream:
+            raise ValueError("Incorrect number of streams for BurstData streams")
         # generate new divisors
         if name is None:
             name = f"div{len(self.div_models)}"
@@ -1018,7 +1023,8 @@ class H2MM_list:
         self.conserve_memory = conserve_memory
     
     def __getitem__(self, key):
-        assert len(self.opts) > 0, ValueError("No optimizations run, must run calc_models or optimize for H2MM_result objects to exist")
+        if len(self.opts) == 0:
+            raise ValueError("No optimizations run, must run calc_models or optimize for H2MM_result objects to exist")
         return self.opts[key]
     
     @property
@@ -1081,61 +1087,71 @@ class H2MM_list:
     @property
     def dwell_params(self):
         """List of attributes that define dwells"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell_params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell_params")
         return self.opts[self.ideal].dwell_params
     
     @property
     def E(self):
         """The FRET efficiency of each state in the ideal model"""
-        assert hasattr(self, "ideal"), ValueError("Ideal model not set, cannot return E")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return E")
         return self.opts[self.ideal].E
     
     @property
     def E_corr(self):
         """The gamma corrected FRET efficiency of each state in the ideal model"""
-        assert hasattr(self, "ideal"), ValueError("Ideal model not set, cannot return E_corr")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return E_corr")
         return self.opts[self.ideal].E_corr
 
     @property
     def S(self):
         """The stoichiometry of each state in the ideal model"""
-        assert hasattr(self, "ideal"), ValueError("Ideal model not set, cannot return S")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return S")
         return self.opts[self.ideal].S
     
     @property
     def S_corr(self):
         """The gamma/beta corrected stoichiometry of each state in the ideal model"""
-        assert hasattr(self, "ideal"), ValueError("Ideal model not set, cannot return S_corr")
+        if not hasattr(self, "ideal"):
+            raise  ValueError("Ideal model not set, cannot return S_corr")
         return self.opts[self.ideal].S_corr
     
     @property
     def trans(self):
         """The Transition rate matrix of the ideal model, rates in s^{-1}"""
-        assert hasattr(self, "ideal"), ValueError("Ideal model not set, cannot return trans")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return trans")
         return self.opts[self.ideal].trans
 
     @property
     def trans_locs(self):
         """List of numpy arrays, identifying the beginning of each new dwell in a burst, for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return trans_locs")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return trans_locs")
         return self.opts[self.ideal].trans_locs
     
     @property
     def burst_dwell_num(self):
         """Number of dwells in each burst for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].burst_dwell_num
     
     @property
     def dwell_state(self):
         """State of each dewll for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].dwell_state
     
     @property
     def dwell_dur(self):
         """The duration of each dwell, in seconds, for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].dwell_dur
     
     @property
@@ -1147,55 +1163,64 @@ class H2MM_list:
             2: beginning dwells
             3: whole burst dwells
         """
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].dwell_pos
     
     @property
     def dwell_ph_counts(self):
         """The number of photons in a dwell, per stream, organized [stream, dwell], for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].dwell_ph_counts
     
     @property
     def dwell_ph_counts_bg(self):
         """The background corrected number of photons in a dwell, per stream, organized [stream, dwell], for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].dwell_ph_counts_bg
     
     @property
     def dwell_E(self):
         """The raw FRET efficiency of each dwell"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params, for the ideal model")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params, for the ideal model")
         return self.opts[self.ideal].dwell_E
     
     @property
     def dwell_E_corr(self):
         """The FRET efficiency of each dwell, with corrections for background, leakage, direct excitation, and gamma applied, for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].dwell_E_corr
     
     @property
     def dwell_S(self):
         """The raw stoichiometry of each dwell, for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].dwell_S
     
     @property
     def dwell_S_corr(self):
         """The stoichiometry of each dwell, with corrections for background, leakage, direct excitation, and gamma and beta applied, for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].dwell_S_corr
     
     @property
     def nanohist(self):
         """Histogram of nanotimes, sorted by state, organized [state, stream, nanotime], for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].nanohist
     
     @property
     def dwell_nano_mean(self):
         """Mean nanotime of each stream and dwell, organized [stream, dwell], for the ideal model"""
-        assert hasattr(self, "ideal"),  ValueError("Ideal model not set, cannot return dwell params")
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].dwell_nano_mean
     
     def optimize(self, model, replace=False, **kwargs):
@@ -1225,7 +1250,8 @@ class H2MM_list:
         None.
 
         """
-        assert self.ndet == model.ndet, ValueError("Model streams inconsistent with data")
+        if self.ndet != model.ndet:
+            raise ValueError("Model streams inconsistent with data")
         nstate = model.nstate
         stid = nstate - 1
         while len(self.opts) < nstate:
@@ -1274,26 +1300,31 @@ class H2MM_list:
 
         Returns
         -------
-        None.
+        ideal : int
+            The index of the ideal model based on the threshold
 
         """
         if models is None:
             models = []
         else:
-            assert np.all([m.ndet == self.ndet for m in models]), ValueError("Model stream inconsistent with data")
-            assert np.unique([m.ndet for m in models]).size == len(models), \
-                ValueError("Multiple models with same number of states")
+            if np.any([m.ndet != self.ndet for m in models]):
+                raise ValueError("Model stream inconsistent with data")
+            if np.unique([m.ndet for m in models]).size != len(models):
+                raise ValueError("Multiple models with same number of states")
         i = min_state
         model_states = [m.nstate for m in models]
         self.ideal_crit = conv_crit
         while i <= max_state and (i <= to_state or _conv_crit(self, conv_crit, thresh) == i-2):
             if i in model_states:
                 model = [m for m in models if m.nstate==i][0]
-                self.optimize(model, replace=True)
+                new_kwargs = {'replace':True}.update(kwargs)
+                self.optimize(model, **new_kwargs)
             elif len(self.opts) < i or self.opts[i-1] is None:
-                model = h2.factory_h2mm_model(i, self.ndet)
-                self.optimize(model)
+                model = h2.factory_h2mm_model(i, self.ndet, bounds=kwargs.get('bounds', None))
+                self.optimize(model, **kwargs)
             i += 1
+        ideal = _conv_crit(self, conv_crit, thresh)
+        return ideal
     
     def find_ideal(self, conv_crit, thresh=None, auto_set=False):
         """
@@ -1566,7 +1597,8 @@ class H2MM_result:
     @property
     def dwell_S(self):
         """The raw stoichiometry of each dwell"""
-        assert frb.Ph_sel(Aex="Aem") in self.parent.parent.ph_streams, AttributeError("Parent BurstData must include AexAem stream ")
+        if frb.Ph_sel(Aex="Aem") not in self.parent.parent.ph_streams:
+            raise AttributeError("Parent BurstData must include AexAem stream ")
         if not hasattr(self, '_dwell_S'):
             Dr = np.argwhere([ph_stream == frb.Ph_sel(Dex='Dem') 
                               for ph_stream in self.parent.parent.ph_streams])[0,0]
@@ -1582,7 +1614,8 @@ class H2MM_result:
     @property
     def dwell_S_corr(self):
         """The stoichiometry of each dwell, with corrections for background, leakage, direct excitation, and gamma and beta applied"""
-        assert frb.Ph_sel(Aex="Aem") in self.parent.parent.ph_streams, AttributeError("Parent BurstData must include AexAem stream ")
+        if frb.Ph_sel(Aex="Aem") not in self.parent.parent.ph_streams:
+            raise AttributeError("Parent BurstData must include AexAem stream ")
         """The stoichiometry of each dwell"""
         if not hasattr(self, '_dwell_S_corr'):
             data = self.parent.parent.data

@@ -1,6 +1,32 @@
 Access Divisors and Models
 ==========================
 
+.. note::
+    For this tutorial, we will assume the following code has been executed prior to all given code snippets (this come from the :ref:`tutorial <tuthidden>`)::
+
+        # import statements
+        import numpy as np
+        from matplotlib import pyplot as plt
+        import fretbursts as frb
+        import burstH2MM as hmm
+        sns = frb.init_notebook()
+        # path to your file
+        filename = 'your_file.hdf5'
+        # load data into fretbursts
+        # load the data into the data object frbdata
+        frbdata = frb.loader.photon_hdf5(filename)
+        frb.loader.alex_apply_period(frbdata)
+        # calculate background counts
+        frbdata.calc_bg(frb.bg.exp_fit, F_bg=1.7)
+        # now perform burst search
+        frbdata.burst_search(m=10, F=6)
+        # make sure to set the appropriate thresholds of ALL size
+        # parameters to the particulars of your experiment
+        frbdata_sel = frbdata.select_bursts(frb.select_bursts.size, th1=50)
+        # now make the BurstData object
+        bdata = hmm.BurstData(frbdata_sel)
+        bdata.models.calc_models()
+
 Access within objects
 ---------------------
 
@@ -55,32 +81,7 @@ Examples of  Object Refrencing and Creation
 There are different ways to select/refer to the same objects.
 So, let's see different examples of alternative ways to perform the same fundamental calculations.
 
-First, let's start with some initial code that will be the same regardless::
-
-    # import statements
-    import numpy as np
-    from matplotlib import pyplot as plt
-    import fretbursts as frb
-    import burstH2MM as hmm
-    sns = frb.init_notebook()
-
-    # path to your file
-    filename = 'your_file.hdf5'
-    # load data into fretbursts
-    # load the data into the data object frbdata
-    frbdata = frb.loader.photon_hdf5(filename)
-    frb.loader.alex_apply_period(frbdata)
-    # calculate background counts
-    frbdata.calc_bg(frb.bg.exp_fit, F_bg=1.7)
-    # now perform burst search
-    frbdata.burst_search(m=10, F=6)
-    # make sure to set the appropriate thresholds of ALL size
-    # parameters to the particulars of your experiment
-    frbdata_sel = frbdata.select_bursts(frb.select_bursts.size, th1=50)
-    # now make the BurstData object
-    bdata = hmm.BurstData(frbdata_sel)
-
-Now, let's see the code as it was before in the :ref:`tutorial <tuthidden>` ::
+Now, let's see the code as it was before in the :ref:`tutorial <tuthidden>`::
 
 
     # calculate models
@@ -123,13 +124,15 @@ is the same as this::
 .. |div_models| replace:: :attr:`BurstData.div_models <burstH2MM.BurstSort.BurstData.div_models>`
 .. |auto_div| replace:: :meth:`BurstData.auto_div() <burstH2MM.BurstSort.BurstData.auto_div>`
 .. |new_div| replace:: :meth:`BurstData.new_div() <burstH2MM.BurstSort.BurstData.new_div>`
+.. |irf_thresh| replace:: :attr:`BurstData.irf_thresh <burstH2MM.BurstSort.BurstData.irf_thresh>`
 .. |H2MM_list| replace:: :class:`H2MM_list <burstH2MM.BurstSort.H2MM_list>`
 .. |list_bic| replace:: :attr:`H2MM_list.BIC <burstH2MM.BurstSort.H2MM_list.BIC>`
 .. |list_bicp| replace:: :attr:`H2MM_list.BICp <burstH2MM.BurstSort.H2MM_list.BICp>`
 .. |list_icl| replace:: :attr:`H2MM_list.ICL <burstH2MM.BurstSort.H2MM_list.ICL>`
-.. |calc_models| replace:: :meth:`H2MM_list <burstH2MM.BurstSort.H2MM_list.calc_models>`
+.. |calc_models| replace:: :meth:`H2MM_list.calc_models() <burstH2MM.BurstSort.H2MM_list.calc_models>`
 .. |opts| replace:: :attr:`H2MM_list.opts <burstH2MM.BurstSort.H2MM_list.opts>`
 .. |H2MM_result| replace:: :class:`H2MM_result <burstH2MM.BurstSort.H2MM_result>`
+.. |trim_data| replace:: :meth:`H2MM_result.trim_data() <burstH2MM.BurstSort.H2MM_result.trim_data>`
 .. |model_E| replace:: :attr:`H2MM_result.E <burstH2MM.BurstSort.H2MM_result.E>`
 .. |model_E_corr| replace:: :attr:`H2MM_result.E_corr <burstH2MM.BurstSort.H2MM_result.E_corr>`
 .. |model_S| replace:: :attr:`H2MM_result.S <burstH2MM.BurstSort.H2MM_result.S>`
@@ -154,3 +157,4 @@ is the same as this::
 .. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <burstH2MM.Plotting.dwell_ES_scatter>`
 .. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <burstH2MM.Plotting.dwell_tau_hist>`
 .. |dwell_E_hist| replace:: :func:`dwell_E_hist() <burstH2MM.Plotting.dwell_E_hist>`
+.. |raw_nanotime_hist| replace:: :func:`raw_nanotime_hist <burstH2MM.Plotting.raw_nanotime_hist>`
