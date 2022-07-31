@@ -823,7 +823,7 @@ class BurstData:
         self._irf_thresh, self._irf_thresh_set = irf_thresh, True
         # loop over all instances where the dwell nano mean has been calculated, and recalculate with new threshold
         for h2_list in chain([self.models], self.div_models.values()):
-            for opt in h2_list:
+            for opt in h2_list.opts:
                 if hasattr(opt, "_dwell_nano_mean"):
                     opt._dwell_nano_mean = opt._full_dwell_nano_mean()
     
@@ -1043,6 +1043,11 @@ class H2MM_list:
         if len(self.opts) == 0:
             raise ValueError("No optimizations run, must run calc_models or optimize for H2MM_result objects to exist")
         return self.opts[key]
+    
+    def __iter__(self):
+        for opt in self.opts:
+            if opt is not None:
+                yield opt
     
     @property
     def num_opt(self):
@@ -1326,7 +1331,7 @@ class H2MM_list:
         else:
             if np.any([m.ndet != self.ndet for m in models]):
                 raise ValueError("Model stream inconsistent with data")
-            if np.unique([m.ndet for m in models]).size != len(models):
+            if np.unique([m.nstate for m in models]).size != len(models):
                 raise ValueError("Multiple models with same number of states")
         i = min_state
         model_states = [m.nstate for m in models]
