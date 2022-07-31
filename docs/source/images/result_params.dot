@@ -20,10 +20,10 @@ index;
 {index, times} -> model;
 {photon_data, mburst} -> {times, index, nanos};
 {model, times, index} -> {path, scale};
-{path, nanos} -> nanohist;
+{path, nanos, scale} -> nanohist;
 {times, trans_locs} -> dwell_dur;
 {index, trans_locs} -> dwell_ph_counts;
-{index, nanos, trans_locs, dwell_state, irf_thresh} -> dwell_nano_mean;
+{index, nanos, trans_locs, dwell_state, irf_thresh, scale} -> dwell_nano_mean;
 {bg_period, dwell_dur, dwell_ph_counts} -> dwell_ph_counts_bg;
 
 subgraph cluster3{

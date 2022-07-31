@@ -34,4 +34,6 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
+Thank you for using |H2MM|
+
 .. |H2MM| replace:: H\ :sup:`2`\ MM

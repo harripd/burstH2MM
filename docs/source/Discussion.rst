@@ -89,7 +89,7 @@ The rest fo the calculated (mostly dwell based) parameters are similarly unique,
 Below the map of dependencies for each of the dwell parameters.
 To know what needs to be calculated for a given parameter, follow the arrows backwards to see which parameters will be calculated in order to access the given parameter.
 
-.. figure:: images/result_params.png
+.. figure:: images/result_params.png 
 
     Parameters generation tree. Boxes indicate categories, if the name is that of a burstH2MM object, then all parameters within are attributes of said object.
 
@@ -113,11 +113,6 @@ If each nanotime received its own index, there would be too many for |H2MM| to p
 |auto_div| uses our even-division strategy to automatically assign what are hopefully sensible divisors.
 This however assumes that the underlying states have an at least somewhat equal population, and have a decay that is dominated by one exponential lifetime.
 If however you know that your system does not follow this pattern, you may want to consider |new_div| to use what you do know about your system to make a more sensible set of divisors.
-
-
-
-
-
 
 
 

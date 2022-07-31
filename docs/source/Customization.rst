@@ -26,6 +26,8 @@ Customization
         # now make the BurstData object
         bdata = hmm.BurstData(frbdata_sel)
         bdata.models.calc_models()
+        # set irf_thresh since later in tutorial we will disucss nanotimes
+        bdata.irf_thresh = np.array([2355, 2305, 220])
 
 Caclulating Nanotimes with Confidence Threshold
 -----------------------------------------------
@@ -51,7 +53,7 @@ To set a threshold, use the keyword argument `conf_thresh` like so::
     # recalculate the nanotime histogram excluding photons with a scale value less than 0.3
     nanohist = hmm.calc_nanohist(bdata.models[2], conf_thresh=0.3)
     # calculate mean nanotimes of DexDem stream with same threshold
-    dwell_nano_mean_dd = calc_dwell_nanomean(bdata.models[2], frb.Ph_sel(Dex='Dem'), 2355, conf_thresh=0.3)
+    dwell_nano_mean_dd = hmm.calc_dwell_nanomean(bdata.models[2], frb.Ph_sel(Dex='Dem'), 2355, conf_thresh=0.3)
 
 .. note::
 
@@ -100,7 +102,7 @@ For instance, if you know your |AA| stream will introduce undesireable behavior,
 So let's demonstrate this, where we will perform |H2MM| in the original form, using only |DD| and |DA| streams::
 
     # make 2 stream BurstData
-    spdata = hmm.BurstData(frbdata, ph_streams=[frb.Ph_sel(Dex='Dem'), frb.Ph_sel(Dex='Aem')])
+    spdata = hmm.BurstData(frbdata_sel, ph_streams=[frb.Ph_sel(Dex='Dem'), frb.Ph_sel(Dex='Aem')])
     # run optimization
     spdata.models.calc_models()
     # plot ICL to choose the best model
@@ -365,7 +367,7 @@ This will optimize even the 1 state and 4 state models, using :func:`H2MM_C.fact
 .. |result_bicp| replace:: :attr:`H2MM_result.bicp <burstH2MM.BurstSort.H2MM_result.bicp>`
 .. |result_icl| replace:: :attr:`H2MM_result.icl <burstH2MM.BurstSort.H2MM_result.icl>`
 .. |calc_nanohist| replace:: :func:`calc_nanohist() <burstH2MM.BurstSort.calc_nanohist>`
-.. |calc_dwell_nanomean| replace:: :func:`calc_dwell_nanomean() <bursth2MM.BurstSort.calc_dwell_nanomean>`
+.. |calc_dwell_nanomean| replace:: :func:`calc_dwell_nanomean() <burstH2MM.BurstSort.calc_dwell_nanomean>`
 .. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <burstH2MM.Plotting.dwell_ES_scatter>`
 .. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <burstH2MM.Plotting.dwell_tau_hist>`
 .. |dwell_E_hist| replace:: :func:`dwell_E_hist() <burstH2MM.Plotting.dwell_E_hist>`
