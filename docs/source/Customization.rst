@@ -1,5 +1,5 @@
-|H2MM| customization
-====================
+Customization
+=============
 
 .. note::
     For this tutorial, we will assume the following code has been executed prior to all given code snippets (this come from the :ref:`tutorial <tuthidden>`)::
@@ -27,6 +27,49 @@
         bdata = hmm.BurstData(frbdata_sel)
         bdata.models.calc_models()
 
+Caclulating Nanotimes with Confidence Threshold
+-----------------------------------------------
+
+By default, when calculating |nanohist| and |dwell_nano_mean|, all photons are considered.
+However, not every photon is necessarily the best way to do this, as we can be more confident of some photon state assignments than others.
+This comes by way of the |scale| parameter, which is a measure of the likelihood of the photon being in the state assigned by the *Viterbi* algorithm (it is one of the outputs of the *Viterbi* algorithm itself).
+Now, it does not make sense to use this for calculating dwell duration, or even E/S values, as these are very much dependent on takign the **whole** dwell.
+However, for nanotime parameters, some filtration could be useful (although in our tests, it has never made a significant difference, but we still wanted to provide the option).
+
+.. note::
+    The scale parameter is a *likelihood* parameter, therefore it is contained within the interval (0,1).
+    Therefore confidence threshholds must also fall within the iterval [0,1).
+    With setting 0 to indicate 
+
+This can be done in two ways:
+1. Using functions, without changing the stored parameter values
+2. Using |conf_thresh|, which will change stored parameters |nanohist| and |dwell_nano_mean|
+
+For option 1, the appropriately named functions |calc_nanohist| and |calc_dwell_nanomean| exist.
+To set a threshold, use the keyword argument `conf_thresh` like so::
+
+    # recalculate the nanotime histogram excluding photons with a scale value less than 0.3
+    nanohist = hmm.calc_nanohist(bdata.models[2], conf_thresh=0.3)
+    # calculate mean nanotimes of DexDem stream with same threshold
+    dwell_nano_mean_dd = calc_dwell_nanomean(bdata.models[2], frb.Ph_sel(Dex='Dem'), 2355, conf_thresh=0.3)
+
+.. note::
+
+    The second argument of |calc_dwell_nanomean| is the desired photon stream.
+    The third argument of |calc_dwell_nanomean| is the threshold for the IRF.
+    You could also input `bdata.models[2].irf_thresh` and |calc_dwell_nanomean| will automatically choose the right threshold for the given photon stream.
+
+Using option 2, you will only need to do the following::
+
+    bdata.models[2].conf_thresh = 0.3
+
+And the |nanohist| and |dwell_nano_mean| attributes of the |H2MM_result| attribute will be updated
+
+.. note::
+
+    The |conf_thresh| attribute is specific to each |H2MM_result|, so set each one you are interested in individually.
+    This is because the distribution of likelihoods is not comparable for models with different numbers of states.
+        
 Customizing Photon Streams (mp vs sp |H2MM|)
 --------------------------------------------
 
@@ -298,6 +341,8 @@ This will optimize even the 1 state and 4 state models, using :func:`H2MM_C.fact
 .. |opts| replace:: :attr:`H2MM_list.opts <burstH2MM.BurstSort.H2MM_list.opts>`
 .. |H2MM_result| replace:: :class:`H2MM_result <burstH2MM.BurstSort.H2MM_result>`
 .. |trim_data| replace:: :meth:`H2MM_result.trim_data() <burstH2MM.BurstSort.H2MM_result.trim_data>`
+.. |scale| replace:: :attr:`H2MM_result.scale <burstH2MM.BurstSort.H2MM_result.scale>`
+.. |conf_thresh| replace:: :attr:`H2MM_result.conf_thresh <burstH2MM.BurstSort.H2MM_result.conf_thresh>`
 .. |model_E| replace:: :attr:`H2MM_result.E <burstH2MM.BurstSort.H2MM_result.E>`
 .. |model_E_corr| replace:: :attr:`H2MM_result.E_corr <burstH2MM.BurstSort.H2MM_result.E_corr>`
 .. |model_S| replace:: :attr:`H2MM_result.S <burstH2MM.BurstSort.H2MM_result.S>`
@@ -319,6 +364,8 @@ This will optimize even the 1 state and 4 state models, using :func:`H2MM_C.fact
 .. |result_bic| replace:: :attr:`H2MM_result.bic <burstH2MM.BurstSort.H2MM_result.bic>`
 .. |result_bicp| replace:: :attr:`H2MM_result.bicp <burstH2MM.BurstSort.H2MM_result.bicp>`
 .. |result_icl| replace:: :attr:`H2MM_result.icl <burstH2MM.BurstSort.H2MM_result.icl>`
+.. |calc_nanohist| replace:: :func:`calc_nanohist() <burstH2MM.BurstSort.calc_nanohist>`
+.. |calc_dwell_nanomean| replace:: :func:`calc_dwell_nanomean() <bursth2MM.BurstSort.calc_dwell_nanomean>`
 .. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <burstH2MM.Plotting.dwell_ES_scatter>`
 .. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <burstH2MM.Plotting.dwell_tau_hist>`
 .. |dwell_E_hist| replace:: :func:`dwell_E_hist() <burstH2MM.Plotting.dwell_E_hist>`

@@ -660,7 +660,7 @@ def make_divisors(data, ndiv, include_irf_thresh=False):
     
 
 
-def calc_nanohist(model):
+def calc_nanohist(model, conf_thresh=None):
     """
     Generate the fluorescence decay per state per stream from the model/data
 
@@ -668,6 +668,11 @@ def calc_nanohist(model):
     ----------
     model : H2MM_result
         A h2mm state-model and Viterbi analysis
+    conf_thresh : float, optional
+        The threshold of the :attr:`H2MM_result.scale` for a photon to be included
+        in the nanotime histogram. If None, use :attr:`H2MM_result.conf_thresh`
+        of model.
+        The default is None
 
     Returns
     -------
@@ -676,18 +681,19 @@ def calc_nanohist(model):
         array indexed as follows: [state, stream, nanotime_bin]
 
     """
-    if hasattr(model, '_nanothist'):
-        return model._nanohist
-    nanos = np.concatenate(model.parent.parent.nanos)
-    stream = np.concatenate(model.parent.parent.models.index)
-    state = np.concatenate(model.path)
+    if conf_thresh is None:
+        conf_thresh = model.conf_thresh
+    mask = np.concatenate([scale for scale in model.scale]) >= conf_thresh
+    nanos = np.concatenate(model.parent.parent.nanos)[mask]
+    stream = np.concatenate(model.parent.parent.models.index)[mask]
+    state = np.concatenate(model.path)[mask]
     bins = np.arange(0, model.parent.parent.data.nanotimes_params[0]['tcspc_num_bins'],1)
     nanohist = np.array([[np.histogram(nanos[(stream == i)*(state==j)], bins=bins)[0] 
                           for i in range(len(model.parent.parent.ph_streams))] 
                          for j in range(model.model.nstate)])
     return nanohist
 
-def calc_dwell_nanomean(model, ph_streams, irf_thresh):
+def calc_dwell_nanomean(model, ph_streams, irf_thresh, conf_thresh=None):
     """
     Calcualate the mean nanotimes of dwells for a given (amalgamated) set of 
     photon streams, must define the irf_thresh to exlcude the IRF
@@ -702,6 +708,11 @@ def calc_dwell_nanomean(model, ph_streams, irf_thresh):
     irf_thresh : int, or iterable of ints
         The threshold of the IRF, all photons with nanotime before this threshold
         excluded from analysis
+    conf_thresh : float, optional
+        The threshold of the :attr:`H2MM_result.scale` for a photon to be included
+        in the nanotime histogram. If None, use :attr:`H2MM_result.conf_thresh`
+        of model.
+        The default is None
 
     Returns
     -------
@@ -709,18 +720,24 @@ def calc_dwell_nanomean(model, ph_streams, irf_thresh):
         Mean nanotime of each dwell for the given photon streams, and IRF threshhold
 
     """
+    # check and reshape initial inputs
+    if conf_thresh is None:
+        conf_thresh = model.conf_thresh
     if type(ph_streams) == frb.Ph_sel:
         ph_streams = [ph_streams,]
     irf_thresh = np.atleast_1d(irf_thresh)
     idx = np.empty(len(ph_streams), dtype=int)
+    # get indexes of photon streams
     for i, ph_stream in enumerate(ph_streams):
         idx[i] = np.argwhere([ph_stream == p_stream for p_stream in model.parent.parent.ph_streams])[0,0]
+    # loop over bursts to calculate mean, i keeps track of dwell number
     i, dwell_nanomean = 0, np.zeros(model.dwell_state.size)
-    for nano, trans_loc, index in zip(model.parent.parent.nanos, model.trans_locs, model.parent.parent.models.index):
+    for nano, trans_loc, index, scale in zip(model.parent.parent.nanos, model.trans_locs, model.parent.parent.models.index, model.scale):
         b_mask = np.zeros(nano.size, dtype=bool)
         adj_nano = nano.copy()
+        scale_thresh = scale >= conf_thresh
         for ix, thresh in zip(idx, irf_thresh):
-            s_mask = (index == ix)*(nano > thresh)
+            s_mask = (index == ix)*(nano > thresh)*scale_thresh
             b_mask += s_mask
             adj_nano[s_mask] -= thresh
         for start, stop in zip(trans_loc[:-1], trans_loc[1:]):
@@ -1419,6 +1436,8 @@ class H2MM_result:
         self.parent = parent
         #: The optimized H2MM_C.h2mm_model representing the data
         self.model = model
+        if self.parent.parent.nanos is not None:
+            self._conf_thresh = 0.0
     
     def trim_data(self):
         """Remove photon-level arrays, conserves memory for less important models"""
@@ -1633,6 +1652,26 @@ class H2MM_result:
                                              where=(D*data.gamma + A + C/data.beta) >= 0)
             self._dwell_S_corr = S_corr
         return self._dwell_S_corr
+
+    @property
+    def conf_thresh(self):
+        """Threshhold for considering a photon nantotime in calculating dwell_nano_mean and nanohist"""
+        if not hasattr(self, "_conf_thresh"):
+            raise AttributeError("Parent fretbursts.Data object must include nanotimes")
+        return self._conf_thresh
+    
+    @conf_thresh.setter
+    def conf_thresh(self, conf_thresh):
+        if not isinstance(conf_thresh, (float, int)):
+            raise TypeError("Input must be single number")
+        elif conf_thresh < 0 or conf_thresh >= 1:
+            raise ValueError("conf_thresh must be within [0, 1)")
+        self._conf_thresh = float(conf_thresh)
+        # recalculate parameters with new threshhold
+        if hasattr(self, "_nanohist"):
+            self._nanohist = calc_nanohist(self)
+        if hasattr(self, "_dwell_nano_mean"):
+            self._dwell_nano_mean = self._full_dwell_nano_mean()
     
     @property
     def nanohist(self):
