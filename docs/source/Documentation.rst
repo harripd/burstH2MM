@@ -1,17 +1,20 @@
 Documentation
 =============
 
+.. module:: burstH2MM
+
+
 .. toctree::
    :maxdepth: 2
    :caption: Modules
 
-.. automodule:: burstH2MM.BurstSort
+.. automodule:: BurstSort
     :members:
 
-.. automodule:: burstH2MM.Plotting
+.. automodule:: Plotting
     :members:
 
-.. automodule:: burstH2MM.Masking
+.. automodule:: Masking
     :members:
 
 
