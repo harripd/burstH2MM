@@ -4,7 +4,8 @@ requires = [
     "wheel",
     "IPython",
     "oldest-supported-numpy",
+    "matplotlib",
+    "seaborn",
     "H2MM_C"
-    "fretbursts"
 ]
 build-backend = "setuptools.build_meta"
