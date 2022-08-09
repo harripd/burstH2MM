@@ -354,7 +354,7 @@ This will optimize even the 1 state and 4 state models, using :func:`H2MM_C.fact
 .. |result_icl| replace:: :attr:`H2MM_result.icl <burstH2MM.BurstSort.H2MM_result.icl>`
 .. |calc_nanohist| replace:: :func:`calc_nanohist() <burstH2MM.BurstSort.calc_nanohist>`
 .. |calc_dwell_nanomean| replace:: :func:`calc_dwell_nanomean() <burstH2MM.BurstSort.calc_dwell_nanomean>`
-.. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <burstH2MM.Plotting.dwell_ES_scatter>`
+.. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <Plotting.dwell_ES_scatter>`
 .. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <burstH2MM.Plotting.dwell_tau_hist>`
 .. |dwell_E_hist| replace:: :func:`dwell_E_hist() <burstH2MM.Plotting.dwell_E_hist>`
 .. |raw_nanotime_hist| replace:: :func:`raw_nanotime_hist <burstH2MM.Plotting.raw_nanotime_hist>`

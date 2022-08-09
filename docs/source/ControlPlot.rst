@@ -293,7 +293,7 @@ Plotting only dwells of certain position and other masking
 
 Dwell based plotting functions also include the `dwell_pos` keyword arguments.
 This arguments allows the user to filter which dwells are plotted, not by state, but by the position (middle of the burst, start, stop or whole), and in its most advanced useage, by any user defined criterion.
-There are several possible types of inputs to `dwell_pos`, but the most easily understood is by using one of the :mod:`Masking <burstH2MM.Masking>` functions (see :ref:`maskexplanation` ).
+There are several possible types of inputs to `dwell_pos`, but the most easily understood is by using one of the :mod:`Masking <Masking>` functions (see :ref:`maskexplanation` ).
 
 So let's see `dwell_pos` in action::
 
@@ -351,7 +351,7 @@ Another method is to provide a mask of all the dwells, for example, all dwells w
 .. image:: images/dwellscatterESgtS.png
 
 Now the previous example plots a selection that is not very useful, however, what if we want to exclude dwells with fewer than a certian number of photons?
-Well, you could use |dwell_ph_counts| to make a mask, but there is one :mod:`Masking <burstH2MM.Masking>` function that is different from the others, and will not work direclty as an input to `dwell_pos`: this is :func:`dwell_size() <burstH2MM.Masking.dwell_size>` which needs at least a minimum number of photons as input.
+Well, you could use |dwell_ph_counts| to make a mask, but there is one :mod:`Masking <Masking>` function that is different from the others, and will not work direclty as an input to `dwell_pos`: this is :func:`dwell_size() <Masking.dwell_size>` which needs at least a minimum number of photons as input.
 So here, we will employ a Python `lambda` function::
 
     fig, ax = plt.subplots(figsize=(5,5))
