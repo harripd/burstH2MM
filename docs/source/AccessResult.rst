@@ -320,7 +320,7 @@ array([4, 3, 4, ..., 4, 4, 6])
 .. |model_S_corr| replace:: :attr:`H2MM_result.S_corr <burstH2MM.BurstSort.H2MM_result.S_corr>`
 .. |model_trans| replace:: :attr:`H2MM_result.trans <burstH2MM.BurstSort.H2MM_result.trans>`
 .. |nanohist| replace:: :attr:`H2MM_result.nanohist <burstH2MM.BurstSort.H2MM_result.nanohist>`
-.. |burst_state_counts| replace:: :attr:`H2MM_result.burst_state_counts <vBurstSort.H2MM_result.burst_state_counts>`
+.. |burst_state_counts| replace:: :attr:`H2MM_result.burst_state_counts <BurstSort.H2MM_result.burst_state_counts>`
 .. |burst_type| replace:: :attr:`H2MM_result.burst_type <burstH2MM.BurstSort.H2MM_result.burst_type>`
 .. |dwell_pos| replace:: :attr:`H2MM_result.dwell_pos <burstH2MM.BurstSort.H2MM_result.dwell_pos>`
 .. |dwell_dur| replace:: :attr:`H2MM_result.dwell_dur <burstH2MM.BurstSort.H2MM_result.dwell_dur>`
