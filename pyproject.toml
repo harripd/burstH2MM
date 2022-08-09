@@ -5,5 +5,6 @@ requires = [
     "IPython",
     "oldest-supported-numpy",
     "H2MM_C"
+    "fretbursts"
 ]
 build-backend = "setuptools.build_meta"
