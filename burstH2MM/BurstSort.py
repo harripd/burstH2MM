@@ -179,7 +179,7 @@ def _sort_by_time(times, *args):
         Other parameters of photons in bursts, sorted
 
     """
-    for i in len(times):
+    for i in range(len(times)):
         sort = np.argsort(times[i])
         times[i] = times[i][sort]
         for j in len(args):
