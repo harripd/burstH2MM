@@ -149,6 +149,11 @@ Below is a list and desciption of the different possible parameters and their de
 |                      |                                                                | nanotime      |
 |                      |                                                                | array         |
 +----------------------+----------------------------------------------------------------+---------------+
+| |burst_state_counts| | Counts per dwell of states present within bursts               | state burst   |
+|                      |                                                                | aray          |
++----------------------+----------------------------------------------------------------+---------------+
+| |burst_type|         | Bininary code specifying the state present within each burst   | burst array   |
++----------------------+----------------------------------------------------------------+---------------+
 | |trans_locs|         | The location of transitions with bursts                        | burst list    |
 +----------------------+----------------------------------------------------------------+---------------+
 | |burst_dwell_num|    | Duration of each dwell (in ms)                                 | dwell array   |
@@ -265,6 +270,32 @@ So we can get the mid dwell mask like this::
 
 These functions can be used to filter which dwells are shown in various plotting functions, which is their primary use in burstH2MM. See :ref:`dwellposplot` for a demonstration of thier use in plotting.
 
+.. _burstarrays:
+
+Burst Based Arrays
+------------------
+
+In the list of attributes, you will notice two *burst* as opposed to *dwell* based attributes |burst_state_counts| and |burst_type|
+
+These arrays are based not on dwells, but on the bursts instead. |burst_state_counts| is the larger, but ironically easier to understand of these arrays. Going down the rows, you go through different states, each element indicating the number of dwells in that state, each column a different state.
+
+>>> bdata.models[2].burst_state_counts
+array([[0, 2, 0, ..., 0, 0, 0],
+       [0, 3, 0, ..., 0, 0, 1],
+       [1, 0, 1, ..., 1, 1, 1]])
+
+
+So for instance, the |burst_state_counts|[1,23] will tell you how many dwells there were in state 1 burst 23.
+
+|burst_type| is essentially a simplification of |burst_state_counts| where it no longer matters how many dwells in a given state are present, just whether there is *at least one instance* of that state.
+It represents this in a binary form, so a burst with only State0 will take the value `0b1`, only State1 `0b10`, and a dwell with transitions between State0 and State1 will be represented as `0b11`.
+Of course, python usually doesn't display things in binary, so these will become `1`, `2` and `3` when acutally displayed.
+
+>>> bdata.models[2].burst_type
+array([4, 3, 4, ..., 4, 4, 6])
+
+.. seealso:: :ref:`burstbasedplotting`
+
 .. |H2MM| replace:: H\ :sup:`2`\ MM
 .. |DD| replace:: D\ :sub:`ex`\ D\ :sub:`em`
 .. |DA| replace:: D\ :sub:`ex`\ A\ :sub:`em`
@@ -289,6 +320,8 @@ These functions can be used to filter which dwells are shown in various plotting
 .. |model_S_corr| replace:: :attr:`H2MM_result.S_corr <burstH2MM.BurstSort.H2MM_result.S_corr>`
 .. |model_trans| replace:: :attr:`H2MM_result.trans <burstH2MM.BurstSort.H2MM_result.trans>`
 .. |nanohist| replace:: :attr:`H2MM_result.nanohist <burstH2MM.BurstSort.H2MM_result.nanohist>`
+.. |burst_state_counts| replace:: :attr:`H2MM_result.burst_state_counts <burstH2MM.BurstSort.H2MM_result.burst_state_counts>`
+.. |burst_type| replace:: :attr:`H2MM_result.burst_type <burstH2MM.BurstSort.H2MM_result.burst_type>`
 .. |dwell_pos| replace:: :attr:`H2MM_result.dwell_pos <burstH2MM.BurstSort.H2MM_result.dwell_pos>`
 .. |dwell_dur| replace:: :attr:`H2MM_result.dwell_dur <burstH2MM.BurstSort.H2MM_result.dwell_dur>`
 .. |dwell_state| replace:: :attr:`H2MM_result.dwell_state <burstH2MM.BurstSort.H2MM_result.dwell_state>`

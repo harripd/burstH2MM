@@ -61,8 +61,8 @@ This is done quite simply using the `add_correactions` keyword argument::
     bdata.data.dir_ex = 0.0471
     bdata.data.gamma = 1.8
     bdata.data.beta = 0.69
-    #note the addition of add_corrections=True
-    hmm.dwell_ES_scatter(models[2], add_corrections=True, ax=ax)
+    # note the addition of add_corrections=True
+    hmm.dwell_ES_scatter(bdata.models[2], add_corrections=True, ax=ax)
     # set limits on the values, since with corrections, some dwells with
     # few photons in a stream will have extreme values
     ax.set_xlim([-0.2, 1.2])
@@ -73,6 +73,7 @@ This is done quite simply using the `add_correactions` keyword argument::
 
 
 .. note::
+
     See the :ref:`datacreation` section to understand how, and most importantly **when** parameters are calcualted
     Make sure that your leakage, dir_ex, gamma and beta values are set **before** you try to plot or otherwise access any dwell value that involves correcting for these factors.
     If you want to recalculate, that is possible, use the |trim_data| method on your |H2MM_result| object to clear the value::
@@ -86,7 +87,7 @@ This is done quite simply using the `add_correactions` keyword argument::
         bdata.data.gamma = 1.8
         bdata.data.beta = 0.69
         #note the addition of add_corrections=True
-        hmm.dwell_ES_scatter(models[2], add_corrections=True, ax=ax)
+        hmm.dwell_ES_scatter(bdata.models[2], add_corrections=True, ax=ax)
 
     This will ensure that the values are recalculated with the proper correction factors.
 
@@ -157,7 +158,7 @@ So here's an example where we re-plot the FRET states, but in reverse order, and
     # specify the states we want, now with 1 before 0
     states = np.array([1, 0])
     # make the state_kwargs, we'll add labels this time
-    state_kwargs = [{'color':'yellow', 'label':'FRET state 1'}, {'color':'m', 'label':'FRET state 2}]
+    state_kwargs = [{'color':'yellow', 'label':'FRET state 1'}, {'color':'m', 'label':'FRET state 2'}]
 
     # now we plot
     hmm.dwell_ES_scatter(bdata.models[2], ax=ax, states=states, state_kwargs=state_kwargs)
@@ -177,6 +178,12 @@ Some other dwell parameters are similar.
 To select and/or specify a stream, we have the `streams` keyword argument, and the `stream_kwargs` keyword argument to customize those plotting for those functions as well.
 For this we will use the |dwell_tau_hist| function.
 
+.. note::
+
+    Remember to set the |irf_thresh| ::
+
+        bdata.irf_thresh = np.array([2355, 2305, 220])
+
 So let's see the default appearance first::
 
     fig, ax = plt.subplots(figsize=(3, 5))
@@ -193,7 +200,7 @@ So, let's look at the |DD| and |DA| streams::
 
     fig, ax = plt.subplots(figsize=(5, 3))
     streams = [frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Dex="Aem")]
-    hmm.dwell_tau_hist(models[2], ax=ax, streams=streams)
+    hmm.dwell_tau_hist(bdata.models[2], ax=ax, streams=streams)
 
 .. image: images/dwellnanomeanmulti.png
 
@@ -201,7 +208,7 @@ Or just the |DA| stream::
 
     fig, ax = plt.subplots(figsize=(5, 3))
     streams = [frb.Ph_sel(Dex="Aem")]
-    hmm.dwell_tau_hist(models[2], ax=ax, streams=streams)
+    hmm.dwell_tau_hist(bdata.models[2], ax=ax, streams=streams)
 
 .. image: images/dwellnanomeanAA.png
 
@@ -219,7 +226,7 @@ So let's see an example::
     fig, ax = plt.subplots(figsize=(5, 3))
     streams = [frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Dex="Aem")]
     stream_kw = [{'color':'b'}, {'color':'r'}]
-    hmm.dwell_tau_hist(models[2], ax=ax, streams=streams, stream_kwargs=stream_kw)
+    hmm.dwell_tau_hist(bdata.models[2], ax=ax, streams=streams, stream_kwargs=stream_kw)
 
 .. image:: images/dwellnanomeancbystream.png
 
@@ -229,7 +236,7 @@ But now, the problem is we have no idea which state goes with what, so let's use
     streams = [frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Dex="Aem")]
     stream_kw = [{'color':'b'}, {'color':'r'}]
     state = np.array([0])
-    hmm.dwell_tau_hist(models[2], ax=ax, streams=streams, stream_kwargs=stream_kw, states=state)
+    hmm.dwell_tau_hist(bdata.models[2], ax=ax, streams=streams, stream_kwargs=stream_kw, states=state)
 
 .. image:: images/dwellnanomean1scbstream.png
 
@@ -239,7 +246,7 @@ Finally, `stream_kwargs` and `state_kwargs` work together, the two dictionaries 
     streams = [frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Dex="Aem")]
     stream_kw = [{'color':'b'}, {'color':'r'}]
     state_kw = [{'edgecolor':'darkblue'}, {'edgecolor':'darkorange'}, {'edgecolor':'olive'}]
-    hmm.dwell_tau_hist(models[2], ax=ax, streams=streams, stream_kwargs=stream_kw, state_kwargs=state_kw)
+    hmm.dwell_tau_hist(bdata.models[2], ax=ax, streams=streams, stream_kwargs=stream_kw, state_kwargs=state_kw)
 
 
 .. note::
@@ -272,7 +279,7 @@ In `kwarg_arr`, you provide an array of dictionaries that will be the keyword ar
               {'color':'darkred', 'label':'State1, DexAem'}],
              [{'color':'b', 'label':'State 2, DexDem'},
               {'color':'darkblue', 'label':'State2, DexAem'}]]
-    hmm.dwell_tau_hist(models[2], ax=ax, kwarg_arr=kwarr, streams=[frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Aex="Aem")])
+    hmm.dwell_tau_hist(bdata.models[2], ax=ax, kwarg_arr=kwarr, streams=[frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Aex="Aem")])
     ax.legend()
 
 .. image:: images/dwellnanomeankwarr.png
@@ -292,7 +299,7 @@ So let's see `dwell_pos` in action::
 
     fig, ax = plt.subplots(figsize=(5,5))
     # plot only dwells in the middle of a burst
-    hmm.dwell_ES_scatter(models[2], dwell_pos=hmm.mid_dwell, ax=ax)
+    hmm.dwell_ES_scatter(bdata.models[2], dwell_pos=hmm.mid_dwell, ax=ax)
 
 .. image:: images/dwellscatterESmiddwell.png
 
@@ -309,7 +316,7 @@ So to select the mid dwells, we give it 0::
 
     fig, ax = plt.subplots(figsize=(5,5))
     # plot only dwells in the middle of a burst
-    hmm.dwell_ES_scatter(models[2], dwell_pos=1, ax=ax)
+    hmm.dwell_ES_scatter(bdata.models[2], dwell_pos=1, ax=ax)
 
 .. image:: images/dwellscatterESd0.png
 
@@ -317,7 +324,7 @@ And to select the beginning of bursts::
 
     fig, ax = plt.subplots(figsize=(5,5))
     # plot only dwells in the middle of a burst
-    hmm.dwell_ES_scatter(models[2], dwell_pos=2, ax=ax)
+    hmm.dwell_ES_scatter(bdata.models[2], dwell_pos=2, ax=ax)
 
 .. image:: images/dwellscatterESd2.png
 
@@ -327,7 +334,7 @@ It is also possible to select multiple types of dwells by using an array of all 
     # make array of code selections (beginning and whole burst dwells)
     pos_sel = np.array([2,3])
     # plot the selection
-    hmm.dwell_ES_scatter(models[2], dwell_pos=pos_sel, ax=ax)
+    hmm.dwell_ES_scatter(bdata.models[2], dwell_pos=pos_sel, ax=ax)
 
 .. image:: images/dwellscatterESd23.png
 
@@ -335,9 +342,9 @@ Another method is to provide a mask of all the dwells, for example, all dwells w
 
     fig, ax = plt.subplots(figsize=(5,5))
     # make mask of dwells with stoichiometry greater than 0.5
-    dwell_mask = models[2].dwell_S > 0.5
-    # plt with a mask
-    hmm.dwell_ES_scatter(models[2], dwell_pos=dwell_mask, ax=ax)
+    dwell_mask = bdata.models[2].dwell_S > 0.5
+    # plot with a mask
+    hmm.dwell_ES_scatter(bdata.models[2], dwell_pos=dwell_mask, ax=ax)
     # ensure full S range is plotted
     ax.set_ylim([0,1])
 
@@ -349,12 +356,69 @@ So here, we will employ a Python `lambda` function::
 
     fig, ax = plt.subplots(figsize=(5,5))
     # plot with lambda function, sets ph_min at 10
-    hmm.dwell_ES_scatter(models[2], dwell_pos= lambda m: hmm.dwell_size(m, 10), ax=ax)
+    hmm.dwell_ES_scatter(bdata.models[2], dwell_pos= lambda m: hmm.dwell_size(m, 10), ax=ax)
 
 .. image:: images/dwellscatterESsz10.png
 
 Thus you can hand functions that take |H2MM_result| object as input, and returns a mask as output to select dwells based on whatever parameters you want.
 
+.. _burstbasedplotting:
+
+Burst Based Plotting
+--------------------
+
+What if you want to look not at individual dwells, but at how bursts differe based on the bursts within them?
+For that there are the burst-based plots.
+There is currently 1 burst-based plotting function, but more are likely to come in future versions.
+This is |burst_ES_scatter|
+
+Now, instead of segmenting the data into dwells, we consider entire bursts, based on what states are present within them. Under the hood, this is achieved using the |burst_type| attribute. This means the plots will now have points at the same positions as FRETBursts plotting functions, but will gain additional formating depending on what states are present within them.
+
+.. seealso:: :ref:`burstarrays`
+
+So let's look at the basic plot produced from |burst_ES_scatter| ::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    hmm.burst_ES_scatter(bdata.models[2], ax=ax)
+
+.. image:: images/burstscatterESraw.png
+
+Now this plot has a lot of colors in it, and they aren't labeled. The number of colors scales with the square of the number of states, so you can imagine these plots get busy quickly. So there is an option: `flatten_dynamics`.
+Set this to `True` and then bursts will only be distinguished by whether *any* sort of transition occurs or if they only contain a *single* dwell/state::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    hmm.burst_ES_scatter(bdata.models[2], flatten_dynamics=True,  ax=ax)   
+
+.. image:: images/burstscatterESflat.png
+
+Finally, if you want to control the plotting by burst type, much like the `state_kwargs` keyword argument, thre is the `type_kwargs` keyword argument.
+So, what is the order that the list needs to be given? Well that depends on if `flatten_dynamics` is `True` or `False`.
+
+If it is `False`, then the order is based on the binary order, so it will go State0 only, then State1 only, then State1 and State0, then State2 etc::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    type_kwargs = [
+        {'label':'State 0'}, {'label':'State 1'},
+        {'label':'State 0+1'}, {'label':'State 2'},
+        {'label':'State 2+0'}, {'label':'State 2+1'},
+        {'label':'State 2+1+0'}
+    ]
+    hmm.burst_ES_scatter(bdata.models[2],type_kwargs=type_kwargs, ax=ax)
+    ax.legend()
+
+..image:: images/burstscatterESlabel.png
+
+If `True` then the order is simply State0, State1 ... then finally, the last element will be "dynamic" bursts, i.e. a burst with any sort of dynamics::
+
+    fig, ax = plt.subplots(figsize=(5,5))
+    type_kwargs = [
+        {'label':'State 0'}, {'label':'State 1'},
+        {'label':'State 2'}, {'label':'Dynamics'}
+    ]
+    hmm.burst_ES_scatter(bdata.models[2],flatten_dynamics=True, type_kwargs=type_kwargs, ax=ax)
+    ax.legend()
+
+.. image:: images/burstscatterESflatlabel.png
 
 .. |H2MM| replace:: H\ :sup:`2`\ MM
 .. |DD| replace:: D\ :sub:`ex`\ D\ :sub:`em`
@@ -379,6 +443,8 @@ Thus you can hand functions that take |H2MM_result| object as input, and returns
 .. |model_S_corr| replace:: :attr:`H2MM_result.S_corr <burstH2MM.BurstSort.H2MM_result.S_corr>`
 .. |model_trans| replace:: :attr:`H2MM_result.trans <burstH2MM.BurstSort.H2MM_result.trans>`
 .. |nanohist| replace:: :attr:`H2MM_result.nanohist <burstH2MM.BurstSort.H2MM_result.nanohist>`
+.. |burst_state_counts| replace:: :attr:`H2MM_result.burst_state_counts <burstH2MM.BurstSort.H2MM_result.burst_state_counts>`
+.. |burst_type| replace:: :attr:`H2MM_result.burst_type <burstH2MM.BurstSort.H2MM_result.burst_type>`
 .. |dwell_pos| replace:: :attr:`H2MM_result.dwell_pos <burstH2MM.BurstSort.H2MM_result.dwell_pos>`
 .. |dwell_dur| replace:: :attr:`H2MM_result.dwell_dur <burstH2MM.BurstSort.H2MM_result.dwell_dur>`
 .. |dwell_state| replace:: :attr:`H2MM_result.dwell_state <burstH2MM.BurstSort.H2MM_result.dwell_state>`
@@ -398,6 +464,7 @@ Thus you can hand functions that take |H2MM_result| object as input, and returns
 .. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <burstH2MM.Plotting.dwell_tau_hist>`
 .. |dwell_E_hist| replace:: :func:`dwell_E_hist() <burstH2MM.Plotting.dwell_E_hist>`
 .. |raw_nanotime_hist| replace:: :func:`raw_nanotime_hist <burstH2MM.Plotting.raw_nanotime_hist>`
+.. |burst_ES_scatter| replace:: :func:`burst_ES_scatter <burstH2MM.Plotting.burst_ES_scatter>`
 
 
 .. _plt_scatter: https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.scatter.html

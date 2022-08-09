@@ -108,7 +108,7 @@ So let's demonstrate this, where we will perform |H2MM| in the original form, us
     # plot ICL to choose the best model
     hmm.ICL_plot(spdata.models)
 
-.. images: images/spICL.png
+.. image:: images/spICL.png
     
 Great! Now we can look at the dwell FRET histogram::
 
@@ -151,11 +151,8 @@ We will use the |raw_nanotime_hist| to plot the nanotime decays, and place verti
     # plot histogram of nanotimes by stream
     hmm.raw_nanotime_hist(bdata, ax=ax)
     divs = bdata.div_models[name].divisor_scheme
-    # loop over streams, second part of zip sets color of each bar
-    for div, c in zip(divs, ('g', 'r', 'purple')):
-        # loop over each divisor
-        for dv in div:
-            ax.axvline(dv, c=c)
+    # plot vertical lines of divs
+    hmm.axline_divs(bdata.div_models[name], ax=ax)
 
 .. image:: images/divisor2.png
 
@@ -168,12 +165,8 @@ We will use the |raw_nanotime_hist| to plot the nanotime decays, and place verti
     fig, ax = plt.subplots()
     # plot histogram of nanotimes by stream
     hmm.raw_nanotime_hist(bdata, ax=ax)
-    divs = bdata.div_models[name211].divisor_scheme
-    # loop over streams, second part of zip sets color of each bar
-    for div, c in zip(divs, ('g', 'r', 'purple')):
-        # loop over each divisor
-        for dv in div:
-            ax.axvline(dv, c=c)
+    # plot vertical lines of divs
+    hmm.axline_divs(bdata.div_models[name211], ax=ax)
 
 .. image:: images/divisor211.png
 
@@ -190,12 +183,8 @@ So, if you call |auto_div| with `inlcude_irf_thresh=True`, there will be one ext
     # call same plotting code as before
     fig, ax = plt.subplots()
     hmm.raw_nanotime_hist(bdata, ax=ax)
-    divs = bdata.div_models[nameirf].divisor_scheme
-    # loop over streams, second part of zip sets color of each bar
-    for div, c in zip(divs, ('g', 'r', 'purple')):
-        # loop over each divisor
-        for dv in div:
-            ax.axvline(dv, c=c)
+    # plot vertical lines of divs
+    hmm.axline_divs(bdata.div_models[nameirf], ax=ax)
 
 .. image:: images/divisorirf.png
 
@@ -210,11 +199,8 @@ The function call looks like this::
     fig, ax = plt.subplots()
     hmm.raw_nanotime_hist(bdata, ax=ax)
     divs = bdata.div_models[namecustom].divisor_scheme
-    # loop over streams, second part of zip sets color of each bar
-    for div, c in zip(divs, ('g', 'r', 'purple')):
-        # loop over each divisor
-        for dv in div:
-            ax.axvline(dv, c=c)
+    # plot vertical lines of divs
+    hmm.axline_divs(bdata.div_models[namecustom], ax=ax)
 
 .. image:: images/divisorcustom.png
 
@@ -267,7 +253,7 @@ For instance::
     If a given state-model has already been optimized, you must specify the keyword argument `replace=True`::
 
         # this will not optimize if number of states already exists in H2MM_list
-        bbdata.models.optimize(init)
+        bdata.models.optimize(init)
         # this cause the old optimization to be replaced
         bdata.models.optimize(init, max_iter=8000, replace=True)
 

@@ -60,7 +60,7 @@ So, looking at those results, you can access them by the key that was handed bac
 
 
 >>> name = bdata.auto_div(2)
->>> type(bdata.div_models[name]
+>>> type(bdata.div_models[name])
 burstH2MM.BurstSort.H2MM_list
 
 .. note::
@@ -88,6 +88,7 @@ Now, let's see the code as it was before in the :ref:`tutorial <tuthidden>`::
     bdata.models.calc_models()
     hmm.ICL_plot(bdata.models)
 
+.. image:: images/acdivobjreficl.png
 
 Which we can re-write as ::
 
@@ -95,12 +96,16 @@ Which we can re-write as ::
     models_list.calc_models()
     hmm.ICL_plot(models_list)
 
+.. image:: images/acdivobjreficl.png
+
 Finally, since these models are all connected, we can even swap the last lines like this ::
 
     models_list = bdata.models
     models_list.calc_models()
-    # models_list referes to the same thing as bdata.models
+    # models_list refers to the same thing as bdata.models
     hmm.ICL_plot(bdata.models)
+
+.. image:: images/acdivobjreficl.png
 
 Now let's look at this pattern with divisors, first we'll initiate this code, and pull out the variables ::
 

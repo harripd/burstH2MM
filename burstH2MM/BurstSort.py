@@ -979,6 +979,45 @@ def _conv_crit(model_list, attr, thresh):
         conv = np.argwhere(conv < 0.05)[0,0] if  model_list.num_opt > 1 else 1
     return conv
 
+def _calc_burst_state_counts(path, trans_locs, nstate):
+    """
+    Find the nubmer of times a given state occurs in each burst
+
+    Parameters
+    ----------
+    path : list[numpy.ndarray]
+        The paths list from Viterbi.
+    nstate : int
+        Number of states in model.
+
+    Returns
+    -------
+    state_counts : np.ndarray
+        Array of dwells in each state by burst, organized [state, burst]
+
+    """
+    state_counts = np.array([np.bincount(p[tl[:-1]].astype(np.int64), minlength=nstate) 
+                             for p, tl in zip(path, trans_locs)]).T
+    return state_counts
+
+def _calc_burst_code(state_counts):
+    """
+    Make bitmasks per burst of which states present
+
+    Parameters
+    ----------
+    dwell_counts : list[numpy.ndarray]
+        state_counts array.
+
+    Returns
+    -------
+    burst_code : numpy.ndarray
+        Array of ints with binary representation of which states pressent.
+
+    """
+    burst_code = np.array([sum([2**i for i, b in enumerate(burst) if b != 0]) for burst in state_counts.T])
+    return burst_code
+
 def find_ideal(model_list, conv_crit, thresh=None, auto_set=False):
     """
     Identify the ideal state model
@@ -1339,7 +1378,8 @@ class H2MM_list:
         while i <= max_state and (i <= to_state or _conv_crit(self, conv_crit, thresh) == i-2):
             if i in model_states:
                 model = [m for m in models if m.nstate==i][0]
-                new_kwargs = {'replace':True}.update(kwargs)
+                new_kwargs = {'replace':True}
+                new_kwargs.update(kwargs)
                 self.optimize(model, **new_kwargs)
             elif len(self.opts) < i or self.opts[i-1] is None:
                 model = h2.factory_h2mm_model(i, self.ndet, bounds=kwargs.get('bounds', None))
@@ -1413,7 +1453,7 @@ class H2MM_result:
     large_params = ("path", "scale", "_trans_locs", "_burst_dwell_num", "_dwell_pos", 
                     "_dwell_state", "_dwell_dur", "_dwell_ph_counts", "_dwell_ph_counts_bg",
                     "_dwell_E", "_dwell_S", "_dwell_E_corr", "_dwell_S_corr"
-                    "_nanohist", "_dwell_nano_mean", "_dwell_ph_counts_bg")
+                    "_dwell_nano_mean", "_dwell_ph_counts_bg", "_nanohist", "_burst_state_counts")
     #: dictionary of dwell parameters as keys, and values the type of plot to use in scatter/histogram plotting
     dwell_params = {"dwell_pos":"bar" , "dwell_state":"bar", "dwell_dur":"ratio",
                     "dwell_E":"ratio", "dwell_S":"ratio", 
@@ -1540,6 +1580,24 @@ class H2MM_result:
         if not hasattr(self, "_burst_dwell_num"):
             self._burst_dwell_num = _calc_burst_dwell_num(self.trans_locs)
         return self._burst_dwell_num
+    
+    @property
+    def burst_state_counts(self):
+        """Counts of number of dwells in each state per burst"""
+        if not hasattr(self, "_burst_state_counts"):
+            self._burst_state_counts = _calc_burst_state_counts(self.path, self.trans_locs,self.model.nstate)
+        return self._burst_state_counts
+    
+    @property
+    def burst_type(self):
+        """Binary code indicating which states present in a burst. Functions as binary mask"""
+        if not hasattr(self, "_burst_type"):
+            if not hasattr(self, "_burst_state_counts"):
+                burst_state_counts = _calc_burst_state_counts(self.path, self.trans_locs, self.model.nstate)
+            else:
+                burst_state_counts = self._burst_state_counts
+            self._burst_type = _calc_burst_code(burst_state_counts)
+        return self._burst_type
     
     @property
     def dwell_pos(self):

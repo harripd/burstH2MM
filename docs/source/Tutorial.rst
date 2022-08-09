@@ -100,10 +100,12 @@ We can also overlay the E/S valued derived from the |H2MM| model over the dwell 
 
 .. image:: images/dwellES.png
 
-It is also important to examine the tranistion rate matrix::
+It is also important to examine the tranistion rate matrix
 
-    trans = bdata.models[2].trans
-    print(trans)
+>>> bdata.models[2].trans
+array([[1.99994147e+07, 5.31727534e+02, 5.35446778e+01],
+       [2.05278876e+02, 1.99996914e+07, 1.03279433e+02],
+       [7.90892082e+00, 1.16271415e+02, 1.99998758e+07]])
 
 There are many more plotting functions, you can see in the :ref:`plotting` module.
 
@@ -149,11 +151,11 @@ This creates a new divisor based |H2MM_list| object stored in the dictionary |di
 So let's extract the |H2MM_list| object generated, and then run an optimization::
 
     # run H2MM analysis
-    bdata.div_models[div_name]div_model.calc_models()
+    bdata.div_models[div_name].calc_models()
 
 Next, as before, we need to look at the ICL, to choose the ideal model ::
 
-    hmm.ICL_plot(bdata.div_models[div_name]div_model)
+    hmm.ICL_plot(bdata.div_models[div_name])
 
 .. image:: images/diviclplot.png
 
@@ -162,7 +164,7 @@ The 3 state model again looks like the best fit, so we will reference it with in
 Now we can finally plot the distribution of nanotimes per state.
 For this there is the |dwell_tau_hist| ::
 
-    hmm.dewll_tau_hist(bdata.div_models[div_name]div_model[2])
+    hmm.dwell_tau_hist(bdata.div_models[div_name][2])
 
 .. image:: images/dwellnthist.png
 

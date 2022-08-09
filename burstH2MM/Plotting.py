@@ -296,6 +296,100 @@ def _make_dwell_pos(model, dwell_pos):
 __param_func = {"bar":_single_sort, "ratio":_single_sort, "stream":_stream_sort}
 
 @_useideal
+def burst_ES_scatter(model, add_corrections=False, flatten_dynamics=False, 
+                     type_kwargs=None, ax=None, **kwargs):
+    """
+    Plot E-S scatter plot of bursts, colored based on states present in dwell.
+
+    Parameters
+    ----------
+    model : H2MM_result
+        Model of data to be plotted .
+    add_corrections : bool, optional
+        Whether to use the corrected E/S values of bursts, or to include background,
+        leakage, direct excitation, gamma and beta value corrections. 
+        The default is False.
+    flatten_dynamics : bool, optional
+        If True, bursts with multiple states are all plotted together.
+        Usefull for models with many numbers of states
+        If False, every unique combination of states in burst are plotted separately.
+        The default is False.
+    type_kwargs : list[dict], optional
+        List or tuple of dictionaries with burst-type specific arguments handed
+        to ax.scatter. 
+        .. note::
+            
+            The order is based on the order in which the burst-types are plotted.
+            This will depend on whether `flatten_dynamics` is `True` or `False`
+            If `True` the order is the states, and finally dynamics (thus the length
+            will be # of state + 1).
+            If `False`, then the order is that of `burst_type`, i.e. bitmap representation.
+            Thus, the order will mix single and multiple states. Be carefull your order.
+            
+        The default is None.
+    ax : matplotlib.axes._subplots.AxesSubplot, optional
+        Axes to draw scatterplot in. The default is None.
+    **kwargs : dict
+        Dictionary of keyword arguments handed to ax.scatter.
+
+    Raises
+    ------
+    ValueError
+        Incorrect length of type_kwargs.
+
+    Returns
+    -------
+    collections : list[matplotlib.collections.PathCollection]
+        List of PathCollections returned by ax.scatter.
+
+    """
+    ax = _check_ax(ax)
+    if add_corrections:
+        E = np.concatenate(model.parent.parent.data.E)
+        S = np.concatenate(model.parent.parent.data.S)
+        xlabel, ylabel = "E", "S"
+    else:
+        Dr = np.argwhere([ph_stream == frb.Ph_sel(Dex='Dem') 
+                          for ph_stream in model.parent.parent.ph_streams])[0,0]
+        Ar = np.argwhere([ph_stream == frb.Ph_sel(Dex='Aem') 
+                          for ph_stream in model.parent.parent.ph_streams])[0,0]
+        Cr = np.argwhere([ph_stream == frb.Ph_sel(Aex='Aem') 
+                          for ph_stream in model.parent.parent.ph_streams])[0,0]
+        A = np.array([(idx == Ar).sum() for idx in model.parent.parent.models.index])
+        D = np.array([(idx == Dr).sum() for idx in model.parent.parent.models.index])
+        C = np.array([(idx == Cr).sum() for idx in model.parent.parent.models.index])
+        DA = (A+D)
+        E = np.empty(A.shape)
+        nan_mask = DA == 0
+        E[~nan_mask] = A[~nan_mask] / DA[~nan_mask]
+        E[nan_mask] = np.nan
+        S = DA / (DA + C)
+        xlabel, ylabel = r"E$\rm^{raw}$", r"S$\rm^{raw}$"
+    burst_color = model.burst_type
+    if flatten_dynamics:
+        burst_color_new = -1 * np.ones(burst_color.size, dtype=int)
+        for i in range(model.model.nstate):
+            burst_color_new[burst_color == 2**i] = i
+        burst_color_new[burst_color_new == -1] = model.model.nstate
+        burst_color = burst_color_new
+    uni = np.unique(burst_color)
+    if type_kwargs is None:
+        type_kwargs = repeat({})
+    elif len(type_kwargs) != uni.size:
+        raise ValueError(f"type_kwargs must be of same length as number of burst types, got {len(type_kwargs)} for type_kwargs, but {uni.size} needed")
+    collections = list()
+    for un, skwargs in zip(uni, type_kwargs):
+        E_sub = E[burst_color == un]
+        S_sub = S[burst_color == un]
+        in_kwargs = kwargs.copy()
+        in_kwargs.update(skwargs)
+        collection = ax.scatter(E_sub, S_sub, **in_kwargs)
+        collections.append(collection)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    return collections
+
+@_useideal
 def scatter_ES(model, ax=None, add_corrections=False, state_kwargs=None, **kwargs):
     """
     Plot the position of all states in E and S
@@ -1362,3 +1456,4 @@ def axline_divs(model_list, horizontal=False, stream_kwargs=None, ax=None, **kwa
         stream_kwargs = (_update_ret(kwargs, kw) for kw in stream_kwargs)
     lines = [[axline(dv, **kw) for dv in div] for div, kw in zip(model_list.divisor_scheme, stream_kwargs)]
     return lines
+
