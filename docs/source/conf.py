@@ -35,8 +35,7 @@ extensions = [
         'sphinx.ext.inheritance_diagram',
         'sphinx.ext.autosummary',
         'sphinx.ext.mathjax',
-        'sphinx.ext.napoleon',
-        'pydata_sphinx_theme'
+        'sphinx.ext.napoleon'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
