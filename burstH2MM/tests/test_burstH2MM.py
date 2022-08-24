@@ -11,7 +11,14 @@ import H2MM_C as hm
 
 @pytest.fixture
 def nsalex_data():
-    urlretrieve('https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5', filename='HP3_TE300_SPC630.hdf5')
+    no_success = True
+    while no_success:
+        try:
+            urlretrieve('https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5', filename='HP3_TE300_SPC630.hdf5')
+        except:
+            no_success = True
+        else:
+            no_success = False    
     data = frb.loader.photon_hdf5("HP3_TE300_SPC630.hdf5")
     frb.loader.alex_apply_period(data)
     data.calc_bg(fun=frb.bg.exp_fit, time_s=30, tail_min_us='auto', F_bg=1.7)
