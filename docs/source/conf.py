@@ -16,7 +16,7 @@ import pydata_sphinx_theme
 
 sys.path.insert(0, os.path.abspath('.'))
 
-import mock
+from unittest import mock
 
 MOCK_MODULES = ['numpy', 'tables','scipy', 'scipy.stats', 'scipy.optimize',
                 'matplotlib', 'matplotlib.pyplot', 'matplotlib.colors',
@@ -48,6 +48,7 @@ extensions = [
         'sphinx.ext.inheritance_diagram',
         'sphinx.ext.autosummary',
         'sphinx.ext.mathjax',
+        'sphinx.ext.intersphinx',
         'sphinx.ext.napoleon'
 ]
 

@@ -1,6 +1,8 @@
 Tutorials
 =========
 
+.. currentmodule:: burstH2MM
+
 .. contents::
 
 Please check out the tutorial Jupyter notebooks, so you can run the code as you learn.
@@ -107,7 +109,7 @@ array([[1.99994147e+07, 5.31727534e+02, 5.35446778e+01],
        [2.05278876e+02, 1.99996914e+07, 1.03279433e+02],
        [7.90892082e+00, 1.16271415e+02, 1.99998758e+07]])
 
-There are many more plotting functions, you can see in the :ref:`plotting` module.
+There are many more plotting functions, you can see in the plotting  module.
 
 burstH2MM attempts to calculate the most common dwell parameters, and to allow for intelligent selection of different sorts of dwells/bursts and do most of the heavy lifting for the user. These are nearly all stored as attributes in |H2MM_result| objects.
 See the dwell selection discussion section to see how some of these aspects work.
@@ -172,13 +174,13 @@ Continue with the :ref:`howto` section for more explanations of how to use these
 
 
 .. |H2MM| replace:: H\ :sup:`2`\ MM
-.. |BurstData| replace:: :class:`BurstData <burstH2MM.BurstSort.BurstData>`
-.. |H2MM_list| replace:: :class:`H2MM_list <burstH2MM.BurstSort.H2MM_list>`
-.. |H2MM_result| replace:: :class:`H2MM_result <burstH2MM.BurstSort.H2MM_result>`
-.. |models| replace:: :attr:`BurstData.models <burstH2MM.BurstSort.BurstData.models>`
-.. |div_models| replace:: :attr:`BurstData.div_models <burstH2MM.BurstSort.BurstData.div_models>`
-.. |irf_thresh| replace:: :attr:`BurstData.irf_thresh <burstH2MM.BurstSort.BurstData.irf_thresh>`
-.. |ph_streams| replace:: :attr:`BurstData.ph_strearms <burstH2MM.BurstSort.BurstData.ph_streams>`
-.. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <burstH2MM.Plotting.dwell_tau_hist>`
-.. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() `<burstH2MM.Plotting.dwell_ES_scatter>`
-.. |scatter_ES| replace:: :func:`scatter_ES() <burstH2MM.Plotting.scatter_ES>` 
+.. |BurstData| replace:: :class:`BurstData <BurstSort.BurstData>`
+.. |H2MM_list| replace:: :class:`H2MM_list <BurstSort.H2MM_list>`
+.. |H2MM_result| replace:: :class:`H2MM_result <BurstSort.H2MM_result>`
+.. |models| replace:: :attr:`BurstData.models <BurstSort.BurstData.models>`
+.. |div_models| replace:: :attr:`BurstData.div_models <BurstSort.BurstData.div_models>`
+.. |irf_thresh| replace:: :attr:`BurstData.irf_thresh <BurstSort.BurstData.irf_thresh>`
+.. |ph_streams| replace:: :attr:`BurstData.ph_strearms <BurstSort.BurstData.ph_streams>`
+.. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <Plotting.dwell_tau_hist>`
+.. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() `<Plotting.dwell_ES_scatter>`
+.. |scatter_ES| replace:: :func:`scatter_ES() <Plotting.scatter_ES>` 
