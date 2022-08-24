@@ -1,0 +1,2 @@
+pytest
+git+https://github.com/harripd/FRETBursts
