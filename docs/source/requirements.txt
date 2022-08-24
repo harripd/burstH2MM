@@ -5,4 +5,3 @@ pandas
 matplotlib
 seaborn
 pydata_sphinx_theme
-git+https://github.com/harripd/FRETBursts
