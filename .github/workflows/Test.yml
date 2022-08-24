@@ -1,0 +1,25 @@
+name: Tests
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ${{matrix}}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, windows-2019, maxOS-10.15]
+        python-version: ["3.8", "3.9", "3.10"]
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Python $${{matrix.os}} ${{matrix.python-version}}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{matrix.python-version}}
+      - name: Istall dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r tests/requiremnts.txt
+      - name: Test with pytest
+        run: python -m tests/pytest

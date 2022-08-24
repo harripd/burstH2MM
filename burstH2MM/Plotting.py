@@ -364,7 +364,7 @@ def burst_ES_scatter(model, add_corrections=False, flatten_dynamics=False,
         E[~nan_mask] = A[~nan_mask] / DA[~nan_mask]
         E[nan_mask] = np.nan
         S = DA / (DA + C)
-        xlabel, ylabel = r"E$\rm^{raw}$", r"S$\rm^{raw}$"
+        xlabel, ylabel = r"E$\rm_{raw}$", r"S$\rm_{raw}$"
     burst_color = model.burst_type
     if flatten_dynamics:
         burst_color_new = -1 * np.ones(burst_color.size, dtype=int)

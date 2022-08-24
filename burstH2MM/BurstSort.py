@@ -1452,7 +1452,7 @@ class H2MM_result:
     #: tuple of parameters that include dwell or photon information- cleared by trim data
     large_params = ("path", "scale", "_trans_locs", "_burst_dwell_num", "_dwell_pos", 
                     "_dwell_state", "_dwell_dur", "_dwell_ph_counts", "_dwell_ph_counts_bg",
-                    "_dwell_E", "_dwell_S", "_dwell_E_corr", "_dwell_S_corr"
+                    "_dwell_E", "_dwell_S", "_dwell_E_corr", "_dwell_S_corr",
                     "_dwell_nano_mean", "_dwell_ph_counts_bg", "_nanohist", "_burst_state_counts")
     #: dictionary of dwell parameters as keys, and values the type of plot to use in scatter/histogram plotting
     dwell_params = {"dwell_pos":"bar" , "dwell_state":"bar", "dwell_dur":"ratio",
@@ -1489,6 +1489,7 @@ class H2MM_result:
         for attr in H2MM_result.large_params:
             if hasattr(self, attr):
                 delattr(self, attr)
+                
     
     @property
     def nstate(self):
@@ -1667,13 +1668,15 @@ class H2MM_result:
                               for ph_stream in self.parent.parent.ph_streams])[0,0]
             D = self.dwell_ph_counts_bg[Dr,:]
             A = self.dwell_ph_counts_bg[Ar,:]
-            F_fret = A - (self.parent.parent.data.leakage * D)
-            F_tot = F_fret + (self.parent.parent.data.gamma * D)
             if frb.Ph_sel(Aex="Aem") in self.parent.parent.ph_streams:
-                Cr = np.argwhere([ph_stream == frb.Ph_sel(Dex='Aem') 
+                Cr = np.argwhere([ph_stream == frb.Ph_sel(Aex='Aem') 
                                   for ph_stream in self.parent.parent.ph_streams])[0,0]
-                F_fret -= self.dwell_ph_counts_bg[Cr,:] * self.parent.parent.data.dir_ex
-            self._dwell_E_corr = np.divide(F_fret, F_tot, out=np.array([np.nan for _ in range(A.size)]), where=F_tot>=0.0)
+                C = self.dwell_ph_counts_bg[Cr,:]
+                F_fret = A - (self.parent.parent.data.leakage * D) - (C * self.parent.parent.data.dir_ex)
+            else:
+                F_fret = A - (self.parent.parent.data.leakage * D)
+            F_tot = F_fret + (self.parent.parent.data.gamma * D)
+            self._dwell_E_corr = np.divide(F_fret, F_tot, out=np.array([np.nan for _ in range(A.size)]), where= F_tot != 0.0)
         return self._dwell_E_corr
     
     @property
@@ -1707,12 +1710,16 @@ class H2MM_result:
                               for ph_stream in self.parent.parent.ph_streams])[0,0]
             Cr = np.argwhere([ph_stream == frb.Ph_sel(Aex='Aem') 
                               for ph_stream in self.parent.parent.ph_streams])[0,0]
+            print(Dr, Ar, Cr)
             D = self.dwell_ph_counts_bg[Dr,:]
             C = self.dwell_ph_counts_bg[Cr,:]
-            A = self.dwell_ph_counts_bg[Ar,:] - D*data.leakage - C*data.dir_ex
-            S_corr = np.divide((D*data.gamma + A), (D*data.gamma + A + C/data.beta), 
+            A = self.dwell_ph_counts_bg[Ar,:]
+            F_fret = A - (self.parent.parent.data.leakage * D) - (C * self.parent.parent.data.dir_ex)
+            F_tot = F_fret + (data.gamma * D)
+            S_tot = F_tot + (C/data.beta)
+            S_corr = np.divide(F_tot, S_tot, 
                                out=np.array([np.nan for _ in range(C.size)]), 
-                                             where=(D*data.gamma + A + C/data.beta) >= 0)
+                                             where= S_tot != 0)
             self._dwell_S_corr = S_corr
         return self._dwell_S_corr
 
