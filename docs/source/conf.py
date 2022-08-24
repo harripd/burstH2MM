@@ -21,6 +21,8 @@ import mock
 MOCK_MODULES = ['numpy', 'scipy', 'matplotlib', 'matplotlib.pyplot', 'scipy.interpolate', 'fretbursts']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
+    
+import burstH2MM
 
 # -- Project information -----------------------------------------------------
 
