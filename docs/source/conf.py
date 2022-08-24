@@ -18,8 +18,11 @@ sys.path.insert(0, os.path.abspath('.'))
 
 import mock
 
-MOCK_MODULES = ['numpy', 'scipy', 'matplotlib', 'matplotlib.pyplot', 'pandas',
-                'fretbursts', 'H2MM_C']
+MOCK_MODULES = ['numpy', 'tables','scipy', 'scipy.stats', 'scipy.optimize',
+                'matplotlib', 'matplotlib.pyplot', 'matplotlib.colors',
+                'matplotlib.patches', 'matplotlib.collections', 'matplotlib.offsetbox', 
+                'matplotlib.gridspec', 'matplotlib.cm', 'seaborn',
+                'pandas', 'lmfit', 'phconvert', 'fretbursts', 'H2MM_C']
 for mod_name in MOCK_MODULES:
     sys.modules[mod_name] = mock.Mock()
     
