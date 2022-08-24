@@ -1,5 +1,7 @@
 # burstH2MM
 
+![Tests](https://github.com/harripd/burstH2MM/actions/workflows/Tests.yml/badge.svg)
+
 ## Introduction
 
 burstH2MM is a package designed to make processing FRETBursts data with photon-by-photon hidden Markov Modeling (H<sup>2</sup>MM) easy to use, and to calculate things such as E, S, transition rates, and other dwell and model parameters, removing the need to manually recode such details each time.
