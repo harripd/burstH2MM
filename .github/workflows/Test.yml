@@ -23,4 +23,4 @@ jobs:
           python -m pip install pytest numpy cython pandas matplotlib seaborn lmfit
           python -m pip install git+https://github.com/harripd/FRETBursts
       - name: Test with pytest
-        run: python -m pytest
+        run: python -m pytest ../tests/
