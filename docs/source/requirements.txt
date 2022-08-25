@@ -6,3 +6,4 @@ matplotlib
 seaborn
 pydata_sphinx_theme
 burstH2MM
+sphinx
