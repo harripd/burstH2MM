@@ -1,28 +1,14 @@
 Documentation
 =============
 
-.. module:: burstH2MM
-
 .. contents::
 
-Burst Sort
-----------
-
-.. automodule:: BurstSort
+.. automodule:: burstH2MM.BurstSort
     :members:
 
-
-Plotting
---------
-
-.. automodule:: Plotting
+.. automodule:: burstH2MM.Plotting
     :members:
 
-Masking
--------
-
-.. automodule:: Masking
+.. automodule:: burstH2MM.Masking
     :members:
 
-
-.. |H2MM| replace:: H\ :sup:`2`\ MM
