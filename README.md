@@ -1,6 +1,6 @@
 # burstH2MM
 
-![Tests](https://github.com/harripd/burstH2MM/actions/workflows/Tests.yml/badge.svg)
+![Tests](https://github.com/harripd/burstH2MM/actions/workflows/Test.yml/badge.svg)
 
 ## Introduction
 
