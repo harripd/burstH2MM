@@ -1,9 +1,9 @@
-numpy
-cython
-lmfit
-pandas
-matplotlib
-seaborn
-pydata_sphinx_theme
+numpy==1.21.1
+cython==0.29.24
+lmfit==1.0.3
+pandas==1.3.4
+matplotlib==3.4.3
+seaborn==0.11.2
+pydata_sphinx_theme==0.9.0
 burstH2MM
-sphinx
+sphinx==5.0.2
