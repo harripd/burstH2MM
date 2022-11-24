@@ -6,7 +6,7 @@ Tutorials
 .. contents::
 
 Please check out the tutorial Jupyter notebooks, so you can run the code as you learn.
-Also, burstH2MM was primarily desigend for use with Jupyter notebooks, allowing for easy recording of your data anlysis.
+Also, burstH2MM was primarily designed for use with Jupyter notebooks, allowing for easy recording of your data analysis.
 
 
 .. _tuthidden:
@@ -17,13 +17,17 @@ Finding Hidden States
 .. note::
     FRETBursts and burstH2MM were both built with Jupyter Notebooks in mind.
     As such, using the jupyter notebook tutorials will likely be more applicable.
-    Jupyter Notebooks allow for inline display of figures, usefull for checking the quality of data at each step, and for explaining your data anlysis.
+    Jupyter Notebooks allow for inline display of figures, useful for checking the quality of data at each step, and for explaining your data analysis.
 
 
 .. image:: images/workflow.png
 
 
 To start the analysis of burst data with |H2MM|, we first need to process the data with FRETBursts, one of the dependencies of burstH2MM.
+
+.. note::
+
+    The file used in this tutorial can be downloaded here: `HP3_TE300_SPC630.hdf5 <https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5>`_
 
 So let's load the data and search for bursts::
 
@@ -76,8 +80,8 @@ Now that the data is selected, we can segment the photons into bursts, which wil
 
     bdata = hmm.BurstData(frbdata_sel)
 
-`bdata` is now the object that will organize the downstream information for optimization.
-When `bdata` was created, it automatically also generated a |H2MM_list| object, stored in |models| which is where we can perform the |H2MM| optimizations.
+``bdata`` is now the object that will organize the downstream information for optimization.
+When ``bdata`` was created, it automatically also generated a |H2MM_list| object, stored in |models| which is where we can perform the |H2MM| optimizations.
 
 .. _tutops:
 
@@ -86,14 +90,14 @@ So let's run a round of optimizations::
     # calculate models
     bdata.models.calc_models()
 
-When you run this, it will optimize |H2MM| models over a range of states. The next task is to select the ideal number of states. To select this, there are sevaral options, but for now we will use the Integrated Complete Likelihood (ICL). The model with the minimal ICL is *usually* the best model::
+When you run this, it will optimize |H2MM| models over a range of states. The next task is to select the ideal number of states. To select this, there are several options, but for now we will use the Integrated Complete Likelihood (ICL). The model with the minimal ICL is *usually* the best model::
 
     hmm.ICL_plot(bdata.models)
 
 .. image:: images/iclplot.png
 
-Now that the ideal model has been identifitied, we can plot the E/S values of each dwell with |dwell_ES_scatter|, which colored by state.
-We can also overlay the E/S valued derived from the |H2MM| model over the dwell values. Note that we pass the `s=50, c="r")` arguments to the |scatter_ES| function, which ensure the size of the points is appropriate, as well as making the color pop ::
+Now that the ideal model has been identified, we can plot the E/S values of each dwell with |dwell_ES_scatter|, which colored by state.
+We can also overlay the E/S values derived from the |H2MM| model over the dwell values. Note that we pass the ``s=50, c="r"`` arguments to the |scatter_ES| function, which ensure the size of the points is appropriate, as well as making the color pop ::
 
     # plot the dwell ES of the result
     hmm.dwell_ES_scatter(bdata.models[2])
@@ -102,14 +106,19 @@ We can also overlay the E/S valued derived from the |H2MM| model over the dwell 
 
 .. image:: images/dwellES.png
 
-It is also important to examine the tranistion rate matrix
+It is also important to examine the transtion rate matrix:
 
 >>> bdata.models[2].trans
 array([[1.99994147e+07, 5.31727534e+02, 5.35446778e+01],
        [2.05278876e+02, 1.99996914e+07, 1.03279433e+02],
        [7.90892082e+00, 1.16271415e+02, 1.99998758e+07]])
 
-There are many more plotting functions, you can see in the plotting  module.
+.. seealso::
+
+    There are many more plotting functions. 
+    You can review these in the |Plotting|  module.
+
+    Additionally, see the how to guide |ControlPlot|
 
 burstH2MM attempts to calculate the most common dwell parameters, and to allow for intelligent selection of different sorts of dwells/bursts and do most of the heavy lifting for the user. These are nearly all stored as attributes in |H2MM_result| objects.
 See the dwell selection discussion section to see how some of these aspects work.
@@ -118,7 +127,7 @@ Using the Divisor Approach
 --------------------------
 
 burstH2MM also allows the |H2MM| input data to incorporate photon nanotimes using the divisor approach.
-Before using divisors and therefore nanotimes, first it is best to analyze the lifetime decays, and set appropriate thresholds for the IRF of each stream, for which we will first plot the decays
+Before using divisors, and therefore nanotimes, it is best to analyze the lifetime decays, and set appropriate thresholds for the IRF of each stream, so we will first plot the decays
 
 .. note::
 
@@ -136,20 +145,20 @@ Now we can choose the best thresholds for the IRF, and we will set the |irf_thre
 
 .. note::
 
-    The order of thresholds cooresponds to the order of streams in |ph_streams| is the order of threshold in |irf_thresh|
+    The order of thresholds corresponds to the order of streams in |ph_streams| is the order of threshold in |irf_thresh|
 
 ::
 
     bdata.irf_thresh = np.array([2355, 2305, 220])
 
-Now that the IRF threshholds have been set, we should have no problems down the road when calculating dwell mean nanotimes and other such parameters.
+Now that the IRF thresholds have been set, we should have no problems down the road when calculating dwell mean nanotimes and other such parameters.
 
 We are now ready to actually start using the divisor approach.
 First a new divisor must be set::
 
     div_name = bdata.auto_div(1)
 
-This creates a new divisor based |H2MM_list| object stored in the dictionary |div_models| with the key returned by the function (stored in `div_name`).
+This creates a new divisor based |H2MM_list| object stored in the dictionary |div_models| with the key returned by the function (stored in ``div_name``).
 So let's extract the |H2MM_list| object generated, and then run an optimization::
 
     # run H2MM analysis
@@ -182,5 +191,7 @@ Continue with the :ref:`howto` section for more explanations of how to use these
 .. |irf_thresh| replace:: :attr:`BurstData.irf_thresh <BurstSort.BurstData.irf_thresh>`
 .. |ph_streams| replace:: :attr:`BurstData.ph_strearms <BurstSort.BurstData.ph_streams>`
 .. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <Plotting.dwell_tau_hist>`
-.. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() `<Plotting.dwell_ES_scatter>`
+.. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <Plotting.dwell_ES_scatter>`
 .. |scatter_ES| replace:: :func:`scatter_ES() <Plotting.scatter_ES>` 
+.. |Plotting| replace:: :mod:`Plotting <Plotting>`
+.. |ControlPlot| replace:: :ref:`Control Plotting Functions <controlplot>`

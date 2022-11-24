@@ -21,6 +21,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pytest numpy cython pandas matplotlib seaborn lmfit h2mm-c
-          python -m pip install git+https://github.com/harripd/FRETBursts
+          python -m pip install fretbursts
+      - name: Download Files Unix
+        if: runner.os != 'Windows'
+        run: wget -N https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5
+      - name: Download Files Windos
+        if: runner.os == 'Windows'
+        run: curl.exe --output HP3_TE300_SPC630.hdf5 --url https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5
       - name: Test with pytest
         run: python -m pytest

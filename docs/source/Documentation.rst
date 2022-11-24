@@ -12,3 +12,6 @@ Documentation
 .. automodule:: burstH2MM.Masking
     :members:
 
+.. automodule:: burstH2MM.Simulations
+    :members:
+

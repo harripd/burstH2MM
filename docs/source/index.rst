@@ -8,7 +8,19 @@ burstH2MM documentation
 
 burstH2MM is designed to make analyzing single molecule burst experiments with |H2MM| easy.
 burstH2MM is built to work with FRETBursts, on which it depends for burst search and selection.
-burstH2MM serves to organize and process the results of |H2MM| optimizations and access the results of *Viterbi* analysis, which assigns each photon a state, and further processing segmets the data into dwells.
+burstH2MM serves to organize and process the results of |H2MM| optimizations and access the results of *Viterbi* analysis, which assigns each photon a state, and further processing segments the data into dwells.
+
+Installation
+------------
+
+To install `burstH2MM` simply type
+
+.. code-block:: bash
+
+    pip install burstH2MM
+
+into your terminal window.
+Python 3.8 or greater is required.
 
 Please Cite
 -----------

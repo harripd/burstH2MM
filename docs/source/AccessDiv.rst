@@ -4,7 +4,9 @@ Access Divisors and Models
 .. currentmodule:: burstH2MM
 
 .. note::
-    For this tutorial, we will assume the following code has been executed prior to all given code snippets (this come from the :ref:`tutorial <tuthidden>`)::
+
+    Download the file used in the analysis here: `HP3_TE300_SPC630.hdf5 <https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5>`_
+    For this tutorial, we will assume the following code has been executed prior to all given code snippets (this comes from the :ref:`tutorial <tuthidden>`)::
 
         # import statements
         import numpy as np
@@ -32,8 +34,9 @@ Access Divisors and Models
 Access within objects
 ---------------------
 
-In burstH2MM, whenever a new optimization result (|H2MM_result|) or divisor scheme (|H2MM_list|) is created, it is stored in a specific variable inside the createing object.
-Therefore, it is easy to access a optimization result or divisor scheme is created, you can access it from its parent.
+In burstH2MM, whenever a new optimization result (|H2MM_result|) or divisor scheme (|H2MM_list|) is created, it is stored in a specific variable inside the creating object.
+Therefore, you can access such a result or divisor scheme through its parent.
+This also helps you keep track of which result belongs with which data set.
 
 So, when we ran the optimization from the :ref:`tutorial <tutops>`::
 
@@ -150,7 +153,7 @@ is the same as this::
 .. |dwell_dur| replace:: :attr:`H2MM_result.dwell_dur <BurstSort.H2MM_result.dwell_dur>`
 .. |dwell_state| replace:: :attr:`H2MM_result.dwell_state <BurstSort.H2MM_result.dwell_state>`
 .. |dwell_ph_counts| replace:: :attr:`H2MM_result.dwell_ph_counts <BurstSort.H2MM_result.dwell_ph_counts>`
-.. |dwell_ph_counts_bg| replace:: :attr:`H2MM_result.dwell_ph_counts_bg BurstSort.H2MM_result.dwell_ph_counts_bg>`
+.. |dwell_ph_counts_bg| replace:: :attr:`H2MM_result.dwell_ph_counts_bg <BurstSort.H2MM_result.dwell_ph_counts_bg>`
 .. |dwell_E| replace:: :attr:`H2MM_result.dwell_E <BurstSort.H2MM_result.dwell_E>`
 .. |dwell_E_corr| replace:: :attr:`H2MM_result.dwell_E_corr <BurstSort.H2MM_result.dwell_E_corr>`
 .. |dwell_S| replace:: :attr:`H2MM_result.dwell_S <BurstSort.H2MM_result.dwell_S>`

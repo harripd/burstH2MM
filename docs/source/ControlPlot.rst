@@ -6,6 +6,8 @@ Control plotting functions
 .. currentmodule:: burstH2MM
 
 .. note::
+
+    Download the file used in the analysis here: `HP3_TE300_SPC630.hdf5 <https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5>`_
     For this tutorial, we will assume the following code has been executed prior to all given code snippets (this come from the :ref:`tutorial <tuthidden>`)::
 
         # import statements
@@ -37,9 +39,9 @@ Customizing state plotting
 
 The central plotting functions of burstH2MM are all highly customizable.
 
-The first and simplest form of customization is using the `ax` keyword argument, which is universal to all plotting functions.
-This lets you make a `matplotlib axes <mpl_ax>`_ (usually made with `plt.subplots() <plt_subplots>`_ or related functions), and then plot all elements within that axes.
-This also lets overlaping differnt plots into one axes.
+The first and simplest form of customization is using the ``ax`` keyword argument, which is universal to all plotting functions.
+This lets you make a matplotlix.axes.Axes_ (usually made with plt.subplots()_ or related functions), and then plot all elements within that axes.
+This also lets overlapping different plots into one axes.
 
 So here's an example, and we'll set the title of the axes afterward::
 
@@ -52,10 +54,10 @@ So here's an example, and we'll set the title of the axes afterward::
 .. image:: images/dwellES55.png
 
 
-For E and S based parameters, there is the option to use the raw values (calcualted from the photons alone), or the values corrected for the values set for leakage, direct excitation, gamma and beta **that have been set in the fretbursts.Data** object used to create the |BurstData| object that you are working on.
+For E and S based parameters, there is the option to use the raw values (calculated from the photons alone), or the values corrected for the values set for leakage, direct excitation, gamma and beta **that have been set in the** ``fretbursts.Data`` object used to create the |BurstData| object that you are working on.
 For dwell based parameters, corrections for background are also applied.
 
-This is done quite simply using the `add_correactions` keyword argument::
+This is done quite simply using the ``add_corrections`` keyword argument::
 
     fig, ax = plt.subplots(figsize=(5,5))
     # add correction factors (determine for your own setup)
@@ -76,9 +78,9 @@ This is done quite simply using the `add_correactions` keyword argument::
 
 .. note::
 
-    See the :ref:`datacreation` section to understand how, and most importantly **when** parameters are calcualted
+    See the :ref:`datacreation` section to understand how, and most importantly **when** parameters are calculated.
     Make sure that your leakage, dir_ex, gamma and beta values are set **before** you try to plot or otherwise access any dwell value that involves correcting for these factors.
-    If you want to recalculate, that is possible, use the |trim_data| method on your |H2MM_result| object to clear the value::
+    If you want to recalculate, use the |trim_data| method on your |H2MM_result| object to clear the value::
 
         bdata.models[2].trim_data()
 
@@ -99,13 +101,13 @@ Customizing plots by state
 --------------------------
 
 Additional customizations focus on how states are individually plotted.
-This is done by passing lists of keyword argument dictionaries to specific keyword argumnets.
+This is done by passing lists of keyword argument dictionaries to specific keyword arguments.
 
-The first of these keyword arguments we will explore is `state_kwargs`.
-This is universall to all plotting functions begining with `dwell_`.
+The first of these keyword arguments we will explore is ``state_kwargs``.
+This is universal to all plotting functions beginning with ``dwell_``.
 For it you pass a list of dictionaries of keyword arguments for the underlying matploplib function, one dictionary for each state.
 
-Confusing, here's a simple example, where we assign a color to each state in the |dwell_ES_scatter| plot::
+Here's a simple example, where we assign a color to each state in the |dwell_ES_scatter| plot::
 
     # set up list, same length as number of states in the model
     state_color = [{'color':'m'}, {'color':'yellow'}, {'color':'c'}]
@@ -114,24 +116,24 @@ Confusing, here's a simple example, where we assign a color to each state in the
 .. image:: images/cmyESscatter.png
 
 So what happened here?
-Since models[2] has 3 states, the input `state_kwargs` keyword argument needs to be a list or tuple of length 3.
-States in a model have an order, established in the model itself.
-Each element of the list is passed, *per state* to the maptloib `scatter() <plt_scatter>`_ function as \*\*kwargs.
-So the first state gets the keyword arguemtn `color='m'`, the second state `color='yellow'` and the third `color='m'`.
+Since models[2] has 3 states, the input ``state_kwargs`` keyword argument needs to be a list or tuple of length 3.
+The model stores states in arrays, which gives the states an arbitrary order.
+Each element of the list is passed *per state* to the matplotlib plt.scatter()_ function as \*\*kwargs, according to the order established in the model.
+So the first state gets the keyword argument ``color='m'``, the second state ``color='yellow'`` and the third ``color='m'``.
 
 .. note::
 
     The different plotting functions use different matplotlib and seaborn functions.
-    So plotting fucntions that create histograms use `plt.hist() <plt_hist>`_, while scatter functions use `plt.scatter() <plt_scatter>`_, and kde plot functions use `sns.kdeplot() <sns_kdeplot>`_
+    So plotting functions that create histograms use plt.hist()_, while scatter functions use plt.scatter()_, and kde plot functions use sns.kdeplot()_
 
 Only displaying certain states
 ------------------------------
 
 What if you want to only look at a few states?
-You can select, and control the order of the plotting of different states with the `states` keyword argument.
+You can select, and control the order of the plotting of different states with the ``states`` keyword argument.
 
 Let's say we want to only look at the FRET states (which are the 0th and 1st states in sample data set, but might be different when you are using other datasets).
-To do this, we make an array of just the indices of those states, and then pass that array to the `states` keyword argument::
+To do this, we make an array of just the indices of those states, and then pass that array to the ``states`` keyword argument::
 
     # make the axes
     fig, ax = plt.subplots(figsize=(5,5))
@@ -148,11 +150,11 @@ To do this, we make an array of just the indices of those states, and then pass 
 Selecting states and controlling their plotting
 ***********************************************
 
-So how do we combine the `states` and `state_kwargs`?
-It's pretty simple, `states` serves like a "master", and so each state specified in `states` is matched with an element of `state_kwargs`, assuming they come *in the same order*.
-So, basicaly specify `state_kwargs` dictionaries in the same order as the states you specify in `states`, and obviously, they need to be the same length, otherwise you will get an error.
+So how do we combine the ``states`` and ``state_kwargs``?
+It's pretty simple, ``states`` serves like a "master", and so each state specified in ``states`` is matched with an element of ``state_kwargs``, assuming they come *in the same order*.
+So, you specify ``state_kwargs`` dictionaries in the same order as the states you specify in ``states``, and obviously, they need to be the same length, otherwise you will get an error.
 
-So here's an example where we re-plot the FRET states, but in reverse order, and see how the `state_kwargs` are also reorderd::
+So here's an example where we re-plot the FRET states, but in reverse order, and see how the ``state_kwargs`` are also reordered::
 
     # make the axes
     fig, ax = plt.subplots(figsize=(5,5))
@@ -177,7 +179,7 @@ Selecting photon streams
 But what about the |dwell_nano_mean| parameter?
 It has not only information per state, but also information per stream.
 Some other dwell parameters are similar.
-To select and/or specify a stream, we have the `streams` keyword argument, and the `stream_kwargs` keyword argument to customize those plotting for those functions as well.
+To select and/or specify a stream, we have the ``streams`` keyword argument, and the ``stream_kwargs`` keyword argument to customize those plotting for those functions as well.
 For this we will use the |dwell_tau_hist| function.
 
 .. note::
@@ -195,7 +197,7 @@ So let's see the default appearance first::
 
 By default, |dwell_tau_hist| only shows the mean nanotimes for the |DD| photon stream.
 But what if we wanted to look at a different stream?
-To do this we use the `streams` keyword argument.
+To do this we use the ``streams`` keyword argument.
 It functions like the :ref:`states <by_state>` keyword argument before.
 
 So, let's look at the |DD| and |DA| streams::
@@ -218,10 +220,10 @@ Or just the |DA| stream::
 Customizing plotting of photon streams
 --------------------------------------
 
-For plots where there are specific selections per stream in addition to per state, the `stream_kwargs` keyword argument extists.
-It functions much like the `state_kwargs` argument, matching the order of `streams` and needing to be the same length.
+For plots where there are specific selections per stream in addition to per state, the ``stream_kwargs`` keyword argument exists.
+It functions much like the ``state_kwargs`` argument, matching the order of ``streams`` and needing to be the same length.
 
-Also, `state_kwargs` and `stream_kwargs` merge dictionaries, so you can specify both, and not have a problem.
+Also, ``state_kwargs`` and ``stream_kwargs`` merge dictionaries, so you can specify both, and not have a problem.
 
 So let's see an example::
 
@@ -232,7 +234,7 @@ So let's see an example::
 
 .. image:: images/dwellnanomeancbystream.png
 
-But now, the problem is we have no idea which state goes with what, so let's use the `states` keyword argument to specify only the 0th state::
+But now, the problem is we have no idea which state goes with what, so let's use the ``states`` keyword argument to specify only the 0th state::
 
     fig, ax = plt.subplots(figsize=(5, 3))
     streams = [frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Dex="Aem")]
@@ -242,7 +244,7 @@ But now, the problem is we have no idea which state goes with what, so let's use
 
 .. image:: images/dwellnanomean1scbstream.png
 
-Finally, `stream_kwargs` and `state_kwargs` work together, the two dictionaries for a particular stream and state combination are merged::
+Finally, ``stream_kwargs`` and ``state_kwargs`` work together: the two dictionaries for a particular stream and state combination are merged::
 
     fig, ax = plt.subplots(figsize=(5, 3))
     streams = [frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Dex="Aem")]
@@ -260,23 +262,23 @@ Finally, `stream_kwargs` and `state_kwargs` work together, the two dictionaries 
 Plotting state and stream specific plotting in one array
 --------------------------------------------------------
 
-Now, sometimes you need even more control, because the two keyworkd argument arrays clash.
-For this there is the `kwarg_arr` keyword argument.
-In `kwarg_arr`, you provide an array of dictionaries that will be the keyword arguments for `scatter() <plt_scatter>`_, the outer dimention indicates which state, the inner, the stream.
+Now, sometimes you need even more control, because the two keyword argument arrays clash.
+For this there is the ``kwarg_arr`` keyword argument.
+In ``kwarg_arr``, you provide an array of dictionaries that will be the keyword arguments for plt.scatter()_ , the outer dimension indicates which state, and the inner dimension indicates which the stream.
 
 .. note::
 
-    `kwarg_arr` is mean to take the place of the combination of `state_kwargs` and `stream_kwargs`
-    As such, if `kwarg_arr` and `state_kwargs` cannot be specified at the same time.
+    `kwarg_arr` is meant to take the place of the combination of `state_kwargs` and `stream_kwargs`.
+    As such, `kwarg_arr` and `state_kwargs` cannot be specified at the same time.
     If `stream_kwargs` is specified at the same time as `kwarg_arr`, then burstH2MM will make a check.
-    If `kwarg_arr` is formated like `state_kwargs`, then it will be treated like `state_kwargs`.
-    On the other hand, if it is formated as demosntrated below, `stream_kwargs` will be ignored, and a warning will be presented.
+    If `kwarg_arr` is formatted like `state_kwargs`, then it will be treated like `state_kwargs`.
+    On the other hand, if it is formatted as demonstrated below, `stream_kwargs` will be ignored, and a warning will be presented.
 
 ::
 
     fig, ax = plt.subplots(figsize=(6, 4))
     kwarr = [[{'color':'g', 'label':'State 0, DexDem'},
-              {'color':'darkgreen', 'label':'State 0, DexDem'}],
+              {'color':'darkgreen', 'label':'State 0, DexAem'}],
              [{'color':'r', 'label':'State 1, DexDem'},
               {'color':'darkred', 'label':'State1, DexAem'}],
              [{'color':'b', 'label':'State 2, DexDem'},
@@ -286,18 +288,18 @@ In `kwarg_arr`, you provide an array of dictionaries that will be the keyword ar
 
 .. image:: images/dwellnanomeankwarr.png
 
-So `kwarg_arr` allows the most customization, but is also the longest to define.
+So ``kwarg_arr`` allows the most customization, but is also the longest to define.
 
 .. _dwellposplot:
 
 Plotting only dwells of certain position and other masking
 ----------------------------------------------------------
 
-Dwell based plotting functions also include the `dwell_pos` keyword arguments.
-This arguments allows the user to filter which dwells are plotted, not by state, but by the position (middle of the burst, start, stop or whole), and in its most advanced useage, by any user defined criterion.
-There are several possible types of inputs to `dwell_pos`, but the most easily understood is by using one of the :mod:`Masking <Masking>` functions (see :ref:`maskexplanation` ).
+Dwell based plotting functions also include the ``dwell_pos`` keyword arguments.
+This arguments allows the user to filter which dwells are plotted, not by state, but by the position (middle of the burst, start, stop or whole), and in its most advanced usage, by any user defined criterion.
+There are several possible types of inputs to ``dwell_pos``, but the most easily understood is by using one of the :mod:`Masking <burstH2MM.Masking>` functions (see :ref:`maskexplanation` ).
 
-So let's see `dwell_pos` in action::
+So let's see ``dwell_pos`` in action::
 
     fig, ax = plt.subplots(figsize=(5,5))
     # plot only dwells in the middle of a burst
@@ -312,7 +314,7 @@ So let's see `dwell_pos` in action::
 
 You will note many fewer points, as there are many beginning, ending and whole burst dwells removed.
 
-It is also possible to specify dwells by specifying `dwell_pos` as an integer cooresponding to the dwell position code used in the similarly named |dwell_pos| parameter.
+It is also possible to specify dwells by specifying ``dwell_pos`` as an integer corresponding to the dwell position code used in the similarly named |dwell_pos| parameter.
 
 So to select the mid dwells, we give it 0::
 
@@ -352,9 +354,9 @@ Another method is to provide a mask of all the dwells, for example, all dwells w
 
 .. image:: images/dwellscatterESgtS.png
 
-Now the previous example plots a selection that is not very useful, however, what if we want to exclude dwells with fewer than a certian number of photons?
-Well, you could use |dwell_ph_counts| to make a mask, but there is one :mod:`Masking <Masking>` function that is different from the others, and will not work direclty as an input to `dwell_pos`: this is :func:`dwell_size() <Masking.dwell_size>` which needs at least a minimum number of photons as input.
-So here, we will employ a Python `lambda` function::
+Now the previous example plots a selection that is not very useful, however, what if we want to exclude dwells with fewer than a certain number of photons?
+Well, you could use |dwell_ph_counts| to make a mask, but there is one :mod:`Masking <burstH2MM.Masking>` function that is different from the others, and will not work directly as an input to ``dwell_pos``: this is :func:`dwell_size() <Masking.dwell_size>` which needs at least a minimum number of photons as input.
+So here, we will employ a Python ``lambda`` function::
 
     fig, ax = plt.subplots(figsize=(5,5))
     # plot with lambda function, sets ph_min at 10
@@ -369,12 +371,12 @@ Thus you can hand functions that take |H2MM_result| object as input, and returns
 Burst Based Plotting
 --------------------
 
-What if you want to look not at individual dwells, but at how bursts differe based on the bursts within them?
+What if you want to look not at individual dwells, but at how bursts differ based on the bursts within them?
 For that there are the burst-based plots.
 There is currently 1 burst-based plotting function, but more are likely to come in future versions.
 This is |burst_ES_scatter|
 
-Now, instead of segmenting the data into dwells, we consider entire bursts, based on what states are present within them. Under the hood, this is achieved using the |burst_type| attribute. This means the plots will now have points at the same positions as FRETBursts plotting functions, but will gain additional formating depending on what states are present within them.
+Now, instead of segmenting the data into dwells, we consider entire bursts, based on what states are present within them. Under the hood, this is achieved using the |burst_type| attribute. This means the plots will now have points at the same positions as FRETBursts plotting functions, but will gain additional formatting depending on what states are present within them.
 
 .. seealso:: :ref:`burstarrays`
 
@@ -385,18 +387,20 @@ So let's look at the basic plot produced from |burst_ES_scatter| ::
 
 .. image:: images/burstscatterESraw.png
 
-Now this plot has a lot of colors in it, and they aren't labeled. The number of colors scales with the square of the number of states, so you can imagine these plots get busy quickly. So there is an option: `flatten_dynamics`.
-Set this to `True` and then bursts will only be distinguished by whether *any* sort of transition occurs or if they only contain a *single* dwell/state::
+Now this plot has a lot of colors in it, and they aren't labeled.
+The number of colors scales with the square of the number of states, so you can imagine these plots get busy quickly.
+So there is an option: ``flatten_dynamics``.
+Set this to ``True`` and then bursts will only be distinguished by whether *any* sort of transition occurs or if they only contain a *single* dwell/state::
 
     fig, ax = plt.subplots(figsize=(5,5))
-    hmm.burst_ES_scatter(bdata.models[2], flatten_dynamics=True,  ax=ax)   
+    hmm.burst_ES_scatter(bdata.models[2], flatten_dynamics=True,  ax=ax)
 
 .. image:: images/burstscatterESflat.png
 
-Finally, if you want to control the plotting by burst type, much like the `state_kwargs` keyword argument, thre is the `type_kwargs` keyword argument.
-So, what is the order that the list needs to be given? Well that depends on if `flatten_dynamics` is `True` or `False`.
+Finally, if you want to control the plotting by burst type, much like the ``state_kwargs`` keyword argument, there is the ``type_kwargs`` keyword argument.
+So, what is the order that the list needs to be given? Well that depends on if ``flatten_dynamics`` is ``True`` or ``False``.
 
-If it is `False`, then the order is based on the binary order, so it will go State0 only, then State1 only, then State1 and State0, then State2 etc::
+If it is ``False``, then the order is based on the binary order, so it will go **State0** only, then **State1** only, then **State1** and **State0**, then **State2** etc::
 
     fig, ax = plt.subplots(figsize=(5,5))
     type_kwargs = [
@@ -408,9 +412,9 @@ If it is `False`, then the order is based on the binary order, so it will go Sta
     hmm.burst_ES_scatter(bdata.models[2],type_kwargs=type_kwargs, ax=ax)
     ax.legend()
 
-..image:: images/burstscatterESlabel.png
+.. image:: images/burstscatterESlabel.png
 
-If `True` then the order is simply State0, State1 ... then finally, the last element will be "dynamic" bursts, i.e. a burst with any sort of dynamics::
+If ``True`` then the order is simply **State0**, **State1** ... then finally, the last element will be "dynamic" bursts, i.e. a burst with any sort of dynamics::
 
     fig, ax = plt.subplots(figsize=(5,5))
     type_kwargs = [
@@ -469,8 +473,8 @@ If `True` then the order is simply State0, State1 ... then finally, the last ele
 .. |burst_ES_scatter| replace:: :func:`burst_ES_scatter <Plotting.burst_ES_scatter>`
 
 
-.. _plt_scatter: https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.scatter.html
-.. _mpl_ax: https://matplotlib.org/stable/api/axes_api.html#matplotlib.axes.Axes
-.. _plt_subplots: https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.subplots.html?highlight=subplots#matplotlib.pyplot.subplots
-.. _plt_hist: https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.hist.html
-.. _sns_kdeplot: https://seaborn.pydata.org/generated/seaborn.kdeplot.html
+.. _plt.scatter(): https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.scatter.html
+.. _matplotlix.axes.Axes: https://matplotlib.org/stable/api/axes_api.html#matplotlib.axes.Axes
+.. _plt.subplots(): https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.subplots.html?highlight=subplots#matplotlib.pyplot.subplots
+.. _plt.hist(): https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.hist.html
+.. _sns.kdeplot(): https://seaborn.pydata.org/generated/seaborn.kdeplot.html

@@ -12,7 +12,7 @@ Plotting
 ========
 
 This section provides all the plotting functions for burstH2MM.
-Most fuctions take a H2MM_result object as input, and customization is provided
+Most functions take a H2MM_result object as input, and customization is provided
 through various keyword arguments.
 """
 
@@ -127,7 +127,7 @@ def _check_streams(model, streams):
     if streams is None:
         streams = model.parent.parent.ph_streams
     elif isinstance(streams, frb.Ph_sel):
-        streams = [streams]
+        streams = [streams, ]
     in_stream = np.array([stream in model.parent.parent.ph_streams for stream in streams])
     if not np.all(in_stream):
         ValueError(f"Stream(s) {[stream for stream, in_s in zip(streams, in_stream) if not in_s]} not in BurstData")
@@ -311,20 +311,21 @@ def burst_ES_scatter(model, add_corrections=False, flatten_dynamics=False,
         The default is False.
     flatten_dynamics : bool, optional
         If True, bursts with multiple states are all plotted together.
-        Usefull for models with many numbers of states
+        Useful for models with many numbers of states
         If False, every unique combination of states in burst are plotted separately.
         The default is False.
     type_kwargs : list[dict], optional
         List or tuple of dictionaries with burst-type specific arguments handed
         to ax.scatter. 
-        .. note::
+        
+            .. note::
             
-            The order is based on the order in which the burst-types are plotted.
-            This will depend on whether `flatten_dynamics` is `True` or `False`
-            If `True` the order is the states, and finally dynamics (thus the length
-            will be # of state + 1).
-            If `False`, then the order is that of `burst_type`, i.e. bitmap representation.
-            Thus, the order will mix single and multiple states. Be carefull your order.
+                The order is based on the order in which the burst-types are plotted.
+                This will depend on whether `flatten_dynamics` is `True` or `False`
+                If `True` the order is the states, and finally dynamics (thus the length
+                will be # of state + 1).
+                If `False`, then the order is that of `burst_type`, i.e. bitmap representation.
+                Thus, the order will mix single and multiple states. Be careful your order.
             
         The default is None.
     ax : matplotlib.axes._subplots.AxesSubplot, optional
@@ -558,7 +559,7 @@ def dwell_param_hist(model, param, streams=None, dwell_pos=None, states=None,
     Raises
     ------
     ValueError
-        Unnacceptle set of kwargs specified.
+        Unacceptable set of kwargs specified.
 
     Returns
     -------
@@ -644,7 +645,7 @@ def dwell_params_scatter(model, paramx, paramy, states=None, state_kwargs=None, 
     Raises
     ------
     ValueError
-        Unnacceptle set of kwargs specified..
+        Unacceptable set of kwargs specified..
 
     Returns
     -------
@@ -697,7 +698,7 @@ def dwell_param_transition_kde_plot(model, param, include_edge=True, ax=None,
                                     stream=frb.Ph_sel(Dex="Dem"), states=None, 
                                     label_kwargs=None, **kwargs):
     """
-    Make kdeplot of transitions, without separating diffent types of transitions
+    Make kdeplot of transitions, without separating different types of transitions
 
     Parameters
     ----------
@@ -706,7 +707,7 @@ def dwell_param_transition_kde_plot(model, param, include_edge=True, ax=None,
     param : str
         Name of parameter to be plotted .
     include_edge : TYPE, optional
-        Whether or not to include tranistions at the edges of bursts in dwells. 
+        Whether or not to include transitions at the edges of bursts in dwells. 
         The default is True.
     ax : matplotlib.axes._subplots.AxesSubplot, optional
         Axes to draw histogram(s) in. The default is None.
@@ -725,7 +726,7 @@ def dwell_param_transition_kde_plot(model, param, include_edge=True, ax=None,
     Raises
     ------
     ValueError
-        Incompattible kwargs passed.
+        Incompatible kwargs passed.
 
     Returns
     -------
@@ -743,7 +744,7 @@ def dwell_param_transition_kde_plot(model, param, include_edge=True, ax=None,
     if label_kwargs is None:
         label_kwargs = {}
     elif not isinstance(label_kwargs, dict):
-        raise ValueError(f"label_kwargs must be dictionary of keword arguments, got {type(label_kwargs)}")
+        raise ValueError(f"label_kwargs must be dictionary of keyword arguments, got {type(label_kwargs)}")
     param_n = getattr(model, param)
     if model.dwell_params[param] == "stream":
         st = np.argwhere([stream == ph_sel for ph_sel in model.parent.parent.ph_streams])[0,0]
@@ -770,7 +771,7 @@ def dwell_param_transition(model, param, include_edge=True, plt_type="scatter", 
                                   state_kwargs=None, streams=None, stream_kwargs=None,
                                   label_kwargs=None, kwarg_arr=None, **kwargs):
     """
-    Plot transition map, separating differnt state to state transitions, either as
+    Plot transition map, separating different state to state transitions, either as
     scatter or kdeplot
 
     Parameters
@@ -780,7 +781,7 @@ def dwell_param_transition(model, param, include_edge=True, plt_type="scatter", 
     param : str
         Name of parameter to be plotted .
     include_edge : TYPE, optional
-        Whether or not to include tranistions at the edges of bursts in dwells. 
+        Whether or not to include transitions at the edges of bursts in dwells. 
         The default is True.
     plt_type : str, optional
         "scatter" or "kde", specify whether to plot as scatter plot or kde-plot
@@ -791,7 +792,7 @@ def dwell_param_transition(model, param, include_edge=True, plt_type="scatter", 
         States of origin dwell to include. If None, all states included.
         The default is None.
     to_state : numpy.ndarray, optional
-        States of desination dwell to include. If None, all states included.
+        States of destination dwell to include. If None, all states included.
         The default is None.
     trans_mask : bool np.ndarray, optional
         Mask of particular transitions to include. If None, all transitions
@@ -804,7 +805,7 @@ def dwell_param_transition(model, param, include_edge=True, plt_type="scatter", 
         The default is None.
     streams : frebrursts.Ph_sel or list thereof, optional
         Which streams to include, if None, all streams included. Ignored if param
-        is not stream-based. Generally recomended to select a single stream to
+        is not stream-based. Generally recommended to select a single stream to
         prevent confusion between state transitions and different streams. 
         The default is None.
     stream_kwargs : list of kwarg dict, optional
@@ -823,7 +824,7 @@ def dwell_param_transition(model, param, include_edge=True, plt_type="scatter", 
     Raises
     ------
     ValueError
-        Incompattible keyword arguments specified.
+        Incompatible keyword arguments specified.
 
     Returns
     -------
@@ -881,13 +882,13 @@ def dwell_param_transition(model, param, include_edge=True, plt_type="scatter", 
                 elif type(kwarg_arr[i][j]) == dict:
                     kwarg_arr[i][j] = np.array([_update_ret(kwarg_arr[i][j], dkwarg) for dkwarg in stream_kwargs])
                 elif len(kwarg_arr[i][j]) != len(streams):
-                    raise ValueError(f"Incompatiblae kwarg_arr[{i}][{j}] size, got {len(kwarg_arr[i][j])}, expected {len(stream_kwargs)}")
+                    raise ValueError(f"Incompatible kwarg_arr[{i}][{j}] size, got {len(kwarg_arr[i][j])}, expected {len(stream_kwargs)}")
                 elif stream_kwargs_set:
                     warnings.warn("kwarg_arr specifies photon streams, stream_kwargs will be ignored")
     if label_kwargs is None:
         label_kwargs = {}
     elif not isinstance(label_kwargs, dict):
-        raise ValueError(f"label_kwargs must be dictionary of keword arguments, got {type(label_kwargs)}")
+        raise ValueError(f"label_kwargs must be dictionary of keyword arguments, got {type(label_kwargs)}")
     assert plt_type in ("scatter", "kde"), ValueError(f"plt_type must be 'scatter' or 'kde', got {plt_type}")
     is_scatter = plt_type == "scatter"
     ax = _check_ax(ax)
@@ -1217,7 +1218,7 @@ def ICL_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwa
     Parameters
     ----------
     model : H2MM_list
-        The set of optimizations to be compoared, a H2MM_list object (a divisor scheme).
+        The set of optimizations to be compared, a H2MM_list object (a divisor scheme).
     highlight_ideal : bool, optional
         Whether or not to plot the ideal/selected model separately. 
         The default is False.
@@ -1245,7 +1246,7 @@ def BIC_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwa
     Parameters
     ----------
     model : H2MM_list
-        The set of optimizations to be compoared, a H2MM_list object (a divisor scheme).
+        The set of optimizations to be compared, a H2MM_list object (a divisor scheme).
     highlight_ideal : bool, optional
         Whether or not to plot the ideal/selected model separately. 
         The default is False.
@@ -1273,7 +1274,7 @@ def BICp_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kw
     Parameters
     ----------
     model : H2MM_list
-        The set of optimizations to be compoared, a H2MM_list object (a divisor scheme).
+        The set of optimizations to be compared, a H2MM_list object (a divisor scheme).
     highlight_ideal : bool, optional
         Whether or not to plot the ideal/selected model separately. 
         The default is False.
@@ -1295,10 +1296,11 @@ def BICp_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kw
     return collections
 
 
-def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, **kwargs):
+def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, yscale='linear',
+                      normalize=False, **kwargs):
     """
     Plot the histogram of nanotimes of photons (in bursts) per stream.
-    Usefull for visualizing the fluoresence decays, and deciding where to place
+    Usefull for visualizing the fluorescence decays, and deciding where to place
     the IRF thresh
 
     Parameters
@@ -1314,6 +1316,13 @@ def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, **kwargs)
         Per stream kwargs, passed to ax.plot, must match streams. If None, no 
         stream specific kwargs passed to ax.plot.
         The default is None.
+    yscale: str optional
+        The argument passed to the ax.set_yscale function.
+        Primary options are 'linear' (default) and 'log'.
+        The default is 'linear'
+    normalize : bool, optional
+        Whether to plot normalize the number of counts to the maximum per stream. 
+        The default is False.
     ax : matplotlib.axes or None, optional
         The axes where the plot will be placed. The default is None.
     **kwargs : dict
@@ -1327,7 +1336,7 @@ def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, **kwargs)
     Returns
     -------
     collections : list[matplotlib.collections.PathCollection]
-        List of path collections, per stream, from ax.plot of each nanotime deacy.
+        List of path collections, per stream, from ax.plot of each nanotime decay.
     leg : matplotlib.legend.Legend
         Legend object
 
@@ -1360,26 +1369,107 @@ def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, **kwargs)
         if 'c' not in s_kwargs or 'color' not in s_kwargs or 'c' not in kwargs or 'color' not in kwargs:
             in_kwargs.update({'color':_color_dict[stream]})
         in_kwargs.update(s_kwargs)
-        collection = ax.plot(nanotime_bin, hist, **in_kwargs)
+        y = hist/hist.max() if normalize else hist
+        collection = ax.plot(nanotime_bin, y, **in_kwargs)
         collections.append(collection)
     leg = ax.legend()
+    ax.set_yscale(yscale)
     ax.set_xlabel("nanotime bin")
-    ax.set_ylabel("counts")
+    if normalize:
+        ax.set_ylabel("normalized counts")
+    else:
+        ax.set_ylabel("counts")
     return collections, leg
+
+@_useideal
+def state_nanotime_hist(model, states=None, state_kwargs=None, 
+                        streams=frb.Ph_sel(Dex="Dem"), stream_kwargs=None, 
+                        kwarg_arr=None, yscale='log', raw_bin=False, 
+                        normalize=False,ax=None, **kwargs):
+    """
+    Plot the nanotime decays per state per stream of a given model.
+
+    Parameters
+    ----------
+    model : H2MM_result
+        The model containing the data to be plotted
+    states : numpy.ndarray, optional
+        Which states to plot, if None, all states plotted. 
+        The default is None.
+    state_kwargs : list of kwarg dicts, optional
+        Kwargs passed per state. 
+        The default is None.
+    streams : list of fretbursts.Ph_sel, optional
+        The stream(s) to inlcude. The default is [frb.Ph_sel(Dex="Dem"), ].
+    stream_kwargs : list of kwarg dict, optional
+        List of per-stream kwargs to pass to scatter or kdeplot. 
+        The default is None.
+    kwarg_arr : array of kwargs dicts, optional
+        Array of dicts to use as kwargs for specific combinations of states/streams
+        in data. Cannot be specified at same time as state_kwargs. If 2D, then will
+        overwrite stream_kwargs, 2nd dimension, if exists specifies stream kwargs
+        The default is None.
+    yscale : str, optional
+        Agrument passed to ax.set_yscale, primary options are 'log' and 'linear.
+        The default is 'log'.
+    raw_bin : bool, optional
+        Whether to plot the raw nanotime bin (True) or convert into units of ns
+        (False, default). The default is False.
+    normalize : bool, optional
+        Whether to plot normalize the number of counts to the maximum per stream. 
+        The default is False.
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    **kwargs : dict
+        Additional keyword arguments, passed to ax.plot.
+
+    Returns
+    -------
+    collections : list[list[matplotlib.collections.PathCollection]]
+        A list of lists of path collections returned by ax.plot, per state per stream.
+
+    """
+    ax = _check_ax(ax)
+    states, streams, kwarg_arr = _process_kwargs(model, states, streams, state_kwargs, stream_kwargs, kwarg_arr)
+    collections = list()
+    for state, state_kwarr in zip(states, kwarg_arr):
+        collections.append(list())
+        for stream, kw_arr in zip(streams, state_kwarr):
+            strm = np.argwhere([stream == s for s in model.parent.parent.ph_streams])[0,0]
+            in_kwargs = kwargs.copy()
+            in_kwargs.update({'label': f"State: {state}, Stream: {stream.__str__()}"})
+            in_kwargs.update(kw_arr)
+            x = np.arange(0,model.nanohist.shape[2],1)
+            if not raw_bin:
+                x = x * model.parent.parent.data.nanotimes_params[0]['tcspc_unit']*1e3
+            y = model.nanohist[state, strm, :]/model.nanohist[state, strm, :].max() if normalize else model.nanohist[state, strm, :]
+            collection = ax.plot(x, y, **in_kwargs)
+            collections[-1].append(collection)
+    if normalize:
+        ax.set_ylabel("relative counts")
+    else:
+        ax.set_ylabel("counts")
+    ax.set_yscale(yscale)
+    if raw_bin:
+        ax.set_xlabel("nanotime (ns)")
+    else:
+        ax.set_xlabel("nanotime bin")
+    return collections
+
 
 def axline_irf_thresh(data, horizontal=False, stream_kwargs=None, ax=None, **kwargs):
     """
-    Plot lines indicating the positions of the IRF threshholds
+    Plot lines indicating the positions of the IRF thresholds
 
     Parameters
     ----------
     data : BurstData
-        The BurstData for which to show the IRF threshholds.
+        The BurstData for which to show the IRF thresholds.
     horizontal : bool, optional
         Plot the lines vertiaclly (False) or horizontally (True).
         The default is False.
     stream_kwargs : list[dict], optional
-        List of kewyord arguments to pass the axvline or axhline per stream.
+        List of keyword arguments to pass the axvline or axhline per stream.
         The default is None.
     ax : matplotlib.axes or None, optional
         The axes where the plot will be placed. The default is None.
@@ -1422,10 +1512,10 @@ def axline_divs(model_list, horizontal=False, stream_kwargs=None, ax=None, **kwa
     model_list : H2MM_list
         The H2MM_list for which to show positions of the divisors
     horizontal : bool, optional
-        Plot the lines vertiaclly (False) or horizontally (True).
+        Plot the lines vertically (False) or horizontally (True).
         The default is False.
     stream_kwargs : list[dict], optional
-        List of kewyord arguments to pass the axvline or axhline per stream.
+        List of keyword arguments to pass the axvline or axhline per stream.
         The default is None.
     ax : matplotlib.axes or None, optional
         The axes where the plot will be placed. The default is None.

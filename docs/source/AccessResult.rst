@@ -11,6 +11,8 @@ The underlying algorithm finds the most likely model for a predetermined number 
 It is the user who is responsible for comparing optimized models with different numbers of states and selecting the ideal model.
 
 .. note::
+
+    Download the file used in the analysis here: `HP3_TE300_SPC630.hdf5 <https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5>`_
     For this tutorial, we will assume the following code has been executed prior to all given code snippets (this come from the :ref:`tutorial <tuthidden>`)::
 
         # import statements
@@ -39,7 +41,7 @@ It is the user who is responsible for comparing optimized models with different 
 |calc_models| is designed to streamline this process, which optimizes models until the ideal model is found (it actually calculates one more than necessary because it must see that there is at least one model with too many models).
 
 So before |calc_models| is called on an |H2MM_list| object, it has no optimizations associated with it.
-After |calc_models| is called, then several different state models are stored in the |opts| attribute, but are also accesible by indexing |H2MM_list|.
+After |calc_models| is called, then several different state models are stored in the |opts| attribute, but are also accessible by indexing |H2MM_list|.
 
 >>> bdata.models[0]
 AssertionError: No optimizations run, must run calc_models or optimize for H2MM_result objects to exist
@@ -61,9 +63,12 @@ These take the loglikelihood of the model given the data, and add penalties for 
 There are 2 primary discriminators:
 
 #. BIC: the Bayes Information Criterion
-    - Based on the likelihood of the model over all possible paths through the data, usually found to always improve with more states, and therefore less usefull
+
+    - Based on the likelihood of the model over all possible state paths through the data, usually found to always improve with more states, and therefore less useful
+
 #. ICL: the Integrated Complete Likelihood
-   - Based on the likelihood of the most likely state path through the data. Usually is minimized for the ideal state-model, and therefore the prefered statistical discriminator to use.
+
+    - Based on the likelihood of the most likely state path through the data. Usually is minimized for the ideal state-model, and therefore the preferred statistical discriminator to use.
 
 In both cases, the smaller the better.
 Since these are computed for each optimized model, each |H2MM_result| object (index of |H2MM_list|), has an attribute to get this value.
@@ -98,7 +103,7 @@ burstH2MM has an easy way to compare these::
 
 .. image:: images/iclplot.png
 
-Note that we do not index `bdata.models` because this is comparing the different state models, not looking at a single model.
+Note that we do not index ``bdata.models`` because this is comparing the different state models, not looking at a single model.
 
 So now that we know how to select the model, what actually composes a |H2MM| model?
 There are three key components:
@@ -112,7 +117,7 @@ There are three key components:
 
 .. note::
 
-    Note that the attribute names for the statistical discriminators from |H2MM_list| object use captital letters, while |H2MM_result| objects are use lowercase letters.
+    Note that the attribute names for the statistical discriminators from |H2MM_list| object use capital letters, while |H2MM_result| objects are use lowercase letters.
 
 The initial probability matrix does not have a clear physical meaning, but the observation probability and transition probability matrices contain very valuable information.
 burstH2MM automatically converts the values in these from the abstract units of the core algorithm into more human-friendly units (E/S values and transition rates in seconds).
@@ -122,10 +127,10 @@ E and S can be accessed with the attributes |model_E| and |model_S|
 >>> bdata.models[2].E
 array([0.66031034, 0.15955158, 0.06730048])
 
->>> bdata.models[2].E
+>>> bdata.models[2].S
 array([0.43073408, 0.55348988, 0.9708039 ])
 
-The above values are the raw values, if you want to have them corrected for leakage, direct excitation, and the beta and gamma values, you can access them by adding `_corr` to the attribute name, to get |model_E_corr| and |model_S_corr|
+The above values are the raw values, if you want to have them corrected for leakage, direct excitation, and the beta and gamma values, you can access them by adding ``_corr`` to the attribute name, to get |model_E_corr| and |model_S_corr|
 
 The transition rates are accessed through the |model_trans| attributes.
 
@@ -134,7 +139,7 @@ array([[1.99994147e+07, 5.31727465e+02, 5.35447960e+01],
        [2.05278839e+02, 1.99996914e+07, 1.03279378e+02],
        [7.90898846e+00, 1.16271335e+02, 1.99998758e+07]])
 
-These are in s\ :sup:`-1`\  and teh organization is [from state, to state]. Notice that the diagonal is all very large values, this is because the diagonal represents the probability that the system remains in the same state from one time step to the next, as the time steps are in the clock rate of the acquisiation (typically 20 mHz, meaning 50 ns from one time step to the next) this is a very large number.
+These are in s\ :sup:`-1`\  and the organization is [from state, to state]. Notice that the diagonal is all very large values, this is because the diagonal represents the probability that the system remains in the same state from one time step to the next, as the time steps are in the clock rate of the acquisiation (typically 20 mHz, meaning 50 ns from one time step to the next) this is a very large number.
 
 Now |H2MM| also contains the *Viterbi* algorithm, which takes the data and optimized model, and finds the most likely state of each photon.
 burstH2MM continues to perform analysis on this state path to produce a number of usefull parameters to help understand the data.
@@ -142,7 +147,7 @@ burstH2MM continues to perform analysis on this state path to produce a number o
 Table of attributes
 -------------------
 
-Below is a list and desciption of the different possible parameters and their descriptions.
+Below is a list and description of the different possible parameters and their descriptions.
 
 +----------------------+----------------------------------------------------------------+---------------+
 | Attribute            | Description                                                    | Type          |
@@ -183,17 +188,17 @@ Below is a list and desciption of the different possible parameters and their de
 |                      |                                                                | array         |
 +----------------------+----------------------------------------------------------------+---------------+
 
-Meaning of "type" explainded in next section.
+Meaning of "type" explained in next section.
 
 Understanding dwell array organization
 --------------------------------------
 
-Data in dwell attributes (those that begin with "dwell") are orgnized into numpy arrays.
-As diagramed in the figure below, the dwells are placed in the same order that they in the data.
+Data in dwell attributes (those that begin with "dwell") are organized into numpy arrays.
+As diagrammed in the figure below, the dwells are placed in the same order that they in the data.
 This means the consecutive dwells indicate a transition from one state to another.
 However, when one bursts ends, it is generally unreasonable to consider the dwell in the next burst to be considered a transition.
 Hence, special consideration needs to be given for bursts at the start and end of bursts, as well as for bursts which contain only a single state, which is still counted as a dwell.
-Since these are still incldued in the dwell arrays, the position of a burst within a dwell is recorded in the |dwell_pos| paremeter.
+Since these are still included in the dwell arrays, the position of a burst within a dwell is recorded in the |dwell_pos| paremeter.
 
 .. image:: images/dwellorg.png
 
@@ -210,7 +215,7 @@ Therefore, it is a 2D array, with the last dimension marking the dwell.
 
 .. note::
 
-    Make sure to set the |irf_thresh| parameter before accessign |dwell_nano_mean|::
+    Make sure to set the |irf_thresh| parameter before accessing |dwell_nano_mean|::
 
         bdata.irf_thresh = np.array([2355, 2305, 220])
 
@@ -234,7 +239,7 @@ You could also isolate a particular state using the |dwell_state| parameter to m
 
 Thus you can have a great deal of customization.
 
-Example: Calcualte variance of state 1 dwell E values
+Example: Calculate variance of state 1 dwell E values
 *****************************************************
 
 Let's put this into practice.
@@ -251,7 +256,7 @@ So lets see this in code:
 >>> state1_mask = bdata.models[2].dwell_state == 1
 >>> # get E values
 >>> state1_E = bdata.models[2].dwell_E[state1_mask]
->>> # calcualte standard deviation
+>>> # calculate standard deviation
 >>> np.nanstd(state1_E)
 0.1233685488891
 
@@ -289,9 +294,9 @@ array([[0, 2, 0, ..., 0, 0, 0],
 
 So for instance, the |burst_state_counts| [1,23] will tell you how many dwells there were in state 1 burst 23.
 
-|burst_type| is essentially a simplification of |burst_state_counts| where it no longer matters how many dwells in a given state are present, just whether there is *at least one instance* of that state.
-It represents this in a binary form, so a burst with only State0 will take the value `0b1`, only State1 `0b10`, and a dwell with transitions between State0 and State1 will be represented as `0b11`.
-Of course, python usually doesn't display things in binary, so these will become `1`, `2` and `3` when acutally displayed.
+|burst_type| is essentially a simplification of |burst_state_counts| where it no longer matters how many dwells in a given state are present, just whether there is *at least one instance* of a given state.
+It represents this in a binary form, so a burst with only **State0** will take the value ``0b1``, while only **State1** will have ``0b10``, and a dwell with transitions between **State0** and **State1** will be represented as ``0b11``.
+Of course, python usually doesn't display things in binary, so these will become ``1``, ``2`` and ``3`` when acutally displayed.
 
 >>> bdata.models[2].burst_type
 array([4, 3, 4, ..., 4, 4, 6])

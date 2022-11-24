@@ -155,7 +155,7 @@ def dwell_size(model, ph_min, ph_max=np.inf, streams=None):
     Return a mask of dwells with a minimum number of photons, can also specify
     a maximum value through ph_max, and isolate from a set stream with stream.
     
-    Uses the uncorected photon counts.
+    Uses the uncorrected photon counts.
     
 
     Parameters
@@ -163,7 +163,7 @@ def dwell_size(model, ph_min, ph_max=np.inf, streams=None):
     model : H2MM_result
         Model to make mask.
     ph_min : int
-        Minimum nubmer of photons in a dwell.
+        Minimum number of photons in a dwell.
     ph_max : int, optional
         Maximum number of photons in a dwell. 
         

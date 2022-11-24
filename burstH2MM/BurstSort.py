@@ -12,7 +12,7 @@ BurstSort
 =========
 
 The core of burstH2MM, this module provides the base classes for performing and
-anlysizing H2MM resutls of burst data provided by FRETBursts
+analyzing H2MM results of burst data provided by FRETBursts
 """
 
 import numpy as np
@@ -182,7 +182,7 @@ def _sort_by_time(times, *args):
     for i in range(len(times)):
         sort = np.argsort(times[i])
         times[i] = times[i][sort]
-        for j in len(args):
+        for j in range(len(args)):
             args[j][i] = args[j][i][sort]
     return times, *args
 
@@ -221,7 +221,7 @@ def _sort_nsALEX(data, ph_streams):
 
 def _sort_usALEX(data, ph_streams, Aex_stream, Aex_shift):
     """
-    Generate burst arrays from data object given index assigments in ph_streams,
+    Generate burst arrays from data object given index assignments in ph_streams,
     for measurements with continuous wave excitation
 
     Parameters
@@ -260,17 +260,17 @@ def _sort_usALEX(data, ph_streams, Aex_stream, Aex_shift):
             if ph_streams[i] in Aex_stream:
                 Aex.append(i)
         Aex_mask = [np.array([index == A for A in Aex]).sum(axis=0) != 0 for index in indexes]
-    if Aex_shift =='shfit':
+    if Aex_shift =='shift':
         alex_shift = data.D_ON[0] - data.A_ON[0]
         for i in range(len(times)):
             times[i][Aex_mask[i]] += alex_shift
     elif Aex_shift == 'rand':
-        D_ON, D_OFF = data.D_ON[0], data.D_OFF[1]
+        D_ON, D_OFF = data.D_ON[0], data.D_ON[1]
         for i in range(len(times)):
             aex_rnd = np.random.randint(D_ON, D_OFF, size=Aex_mask[i].sum())
-            times[i][Aex_mask[i]] = aex_rnd + (times[Aex_mask[i]] // data.alex_period)*data.alex_period
+            times[i][Aex_mask[i]] = aex_rnd + (times[i][Aex_mask[i]] // data.alex_period)*data.alex_period
     elif Aex_shift == 'even':
-        D_ON, D_OFF = data.D_ON[0], data.D_OFF[1]
+        D_ON, D_OFF = data.D_ON[0], data.D_ON[1]
         D_dur = D_OFF - D_ON
         for i in range(len(times)):
             tms, inv, cnts = np.unique(times[i][Aex_mask[i]]//data.alex_period, 
@@ -278,7 +278,7 @@ def _sort_usALEX(data, ph_streams, Aex_stream, Aex_shift):
             mask = Aex_mask[i]
             time = times[i]
             Aex_times = np.empty(inv.shape, dtype=np.uint64)
-            for j, (tm, cnt) in enumerate(zip(tms, inv)):
+            for j, (tm, cnt) in enumerate(zip(tms, cnts)):
                 t_beg = tm*data.alex_period + D_ON + D_dur/(cnt+1)
                 t_end = tm*data.alex_period + D_OFF
                 Aex_times[j==inv] = np.linspace(t_beg, t_end, cnt).astype(np.uint64)
@@ -347,12 +347,12 @@ def _divisor_sort(indexs, nanos, divs):
         new_index.append(index_n)
     return new_index
 
-def _colapse_index(index,nstream,colapse):
+def _collapse_index(index,nstream,collapse):
     """
     Check that data contains examples of all possible types of photons specified
-    by the number of photon streams. Returns a set of indeces removing unused streams
-    and a numpy array of the unused indeces. If colapse is false, raises an error
-    if streams are missing, and if none are missing returns the unaltered indeces
+    by the number of photon streams. Returns a set of indices removing unused streams
+    and a numpy array of the unused indices. If collapse is false, raises an error
+    if streams are missing, and if none are missing returns the unaltered indices
 
     Parameters
     ----------
@@ -360,7 +360,7 @@ def _colapse_index(index,nstream,colapse):
         indexes of photons in bursts based on photon stream, with no divisors applied
     nstream : int
         Number of photon streams in the data
-    colapse : Bool
+    collapse : Bool
         Whether or not to compress unused indeces, if false, raises error if 
         there are missing indeces
 
@@ -372,12 +372,12 @@ def _colapse_index(index,nstream,colapse):
     Returns
     -------
     index_n : list[numpy.ndarray]
-        Colapsed indeces of phtons in bursts
+        Collapsed indeces of photons in bursts
     uni : numpy.ndarray
-        The unique indexes from the indeces handed to the _colapse_index
+        The unique indexes from the indeces handed to the _collapse_index
 
     """
-    if colapse:
+    if collapse:
         sep = np.cumsum(np.array([0] + [idx.size for idx in index]))
         uni, inv = np.unique(np.concatenate(index), return_inverse=True)
         index_n = [inv[sep_b:sep_e] for sep_b, sep_e in zip(sep[:-1], sep[1:])]
@@ -435,7 +435,7 @@ def _calc_dwell_pos(tloc):
     Parameters
     ----------
     tloc : list[numpy.ndarray]
-        The trans_locs lists, identifiying where transitions are in bursts
+        The trans_locs lists, identifying where transitions are in bursts
         including the 0 index and size of the burst at the beginning and end
         of a burst
 
@@ -474,7 +474,7 @@ def _calc_dwell_dur(tloc, times):
     tloc : list[numpy.ndarray]
         The location of transitions in bursts, including first and last photons
     times : list[numpy.ndarray]
-        Tha macrotimes of photons within bursts
+        The macrotimes of photons within bursts
 
     Returns
     -------
@@ -590,8 +590,8 @@ def _calc_ph_counts_bg(num_dwells, ph_counts, dwell_dur, bg_rt, brst_pos, stream
 
 def _auto_irf_thresh(index, nanos, nstream):
     """
-    Autmatlically determine the threshholds for IRF, using maximum of histogram.
-    Not recomended for general use.
+    Automatically determine the thresholds for IRF, using maximum of histogram.
+    Not recommended for general use.
 
     Parameters
     ----------
@@ -667,7 +667,7 @@ def calc_nanohist(model, conf_thresh=None):
     Parameters
     ----------
     model : H2MM_result
-        A h2mm state-model and Viterbi analysis
+        A h2mm state-model and *Viterbi* analysis
     conf_thresh : float, optional
         The threshold of the :attr:`H2MM_result.scale` for a photon to be included
         in the nanotime histogram. If None, use :attr:`H2MM_result.conf_thresh`
@@ -677,7 +677,7 @@ def calc_nanohist(model, conf_thresh=None):
     Returns
     -------
     nanohist : numpy.ndarray
-        A 3-D numpy array, containing fluoresence decays per state per stream
+        A 3-D numpy array, containing fluorescence decays per state per stream
         array indexed as follows: [state, stream, nanotime_bin]
 
     """
@@ -695,16 +695,16 @@ def calc_nanohist(model, conf_thresh=None):
 
 def calc_dwell_nanomean(model, ph_streams, irf_thresh, conf_thresh=None):
     """
-    Calcualate the mean nanotimes of dwells for a given (amalgamated) set of 
-    photon streams, must define the irf_thresh to exlcude the IRF
+    Calculate the mean nanotimes of dwells for a given (amalgamated) set of 
+    photon streams, must define the irf_thresh to exclude the IRF
 
     Parameters
     ----------
     model : H2MM_result
-        A h2mm state-model and Viterbi analysis
+        A h2mm state-model and *Viterbi* analysis
     ph_streams : fretbursts.Ph_sel or list[fretbursts.Ph_sel]
         Either a Ph_sel object of the stream desired, or a list of Ph_sel objects
-        defining all streams to take the aggregate mean over (generally not recomended)
+        defining all streams to take the aggregate mean over (generally not recommended)
     irf_thresh : int, or iterable of ints
         The threshold of the IRF, all photons with nanotime before this threshold
         excluded from analysis
@@ -717,7 +717,7 @@ def calc_dwell_nanomean(model, ph_streams, irf_thresh, conf_thresh=None):
     Returns
     -------
     dwell_nanomean : numpy.ndarray
-        Mean nanotime of each dwell for the given photon streams, and IRF threshhold
+        Mean nanotime of each dwell for the given photon streams, and IRF threshold
 
     """
     # check and reshape initial inputs
@@ -747,11 +747,40 @@ def calc_dwell_nanomean(model, ph_streams, irf_thresh, conf_thresh=None):
     return dwell_nanomean * model.parent.parent.data.nanotimes_params[0]['tcspc_unit'] * 1e9
     
 
-# Object of data for anlyasis by H2MM, of a set of divisor streams
+# Object of data for analysis by H2MM, of a set of divisor streams
 class BurstData:
     """
     Class to organize a photon selection, functions to manage H2MM_list objects 
-    with different divisor schemes of a data set
+    with different divisor schemes of a data set.
+
+    Parameters
+    ----------
+    data : frb.Data
+        The Data object from which to create the BurstData, will use the burst 
+        selection to generate times, indexes and nanotimes arrays for H2MM
+        optimization.
+    ph_streams : list[frb.Ph_sel], optional
+        Which Ph_sel streams to use to create the indices. If None, use the
+        defaults of [DexDem, DexAem, AexAem] for ALEX data, and [DexDem, DexAem]
+        for single laser excitation. The default is None
+    Aex_stream : frb.Ph_sel or list[frb.Ph_sel], optional
+        **For usALEX only.**  Which stream(s) to shift for usALEX data.
+        If None, ignored for nsALEX data and AexAem for usALEX data.
+        The default is None
+    Aex_shift : bool, str or None, optional
+        The method to shift Aex photons. Options are 'shift', 'rand' and 'even'.
+        - 'shift' merely shifts all Aex photons by the difference between the beginnings of the Donor and Acceptor excitation periods.
+        - 'rand' randomly distributes Aex photons into the adjacent donor excitation period.
+        - 'even' evenly distributes photons from adjacent acceptor excitation periods into the donor excitation period
+        The default is None 
+    irf_thresh : list[int] or None, optional
+        Nanotime bin for the threshold of the IRF.
+        If None, can be set after object creation.
+        The default is None
+    conserve_memory : bool, optional
+        **Not active at present.** Will be used to indicate
+        whether or not to automatically trim arrays after use to
+        conserve memory usage. The default is False
     
     """    
     def __init__(self, data, ph_streams=None, Aex_stream=None, Aex_shift=None,
@@ -760,6 +789,12 @@ class BurstData:
             raise ValueError("Bursts not selected yet")
         if Aex_shift and data.lifetime:
             raise NotImplementedError("Aex_shift only for usALEX")
+        elif Aex_shift is None and not data.lifetime:
+            Aex_shift = 'even'
+        elif isinstance(Aex_shift, bool) and Aex_shift:
+            Aex_shift = 'even'
+        elif not isinstance(Aex_shift, (bool, str)) and Aex_shift is not None:
+            raise ValueError("Aex_shift must be bool, str or None")
         if not data.lifetime and irf_thresh is not None:
             raise NotImplementedError("IRF threshold only for pulsed excitation")
         if ph_streams is None:
@@ -768,7 +803,9 @@ class BurstData:
                               frb.Ph_sel(Dex="Aem"), 
                               frb.Ph_sel(Aex="Aem"))
                 if Aex_stream is None:
-                    Aex_stream = frb.Ph_sel(Aex='Aem')
+                    Aex_stream = (frb.Ph_sel(Aex='Aem'), )
+                elif isinstance(Aex_stream, frb.Ph_sel):
+                    Aex_stream = (Aex_stream, )
             else:
                 ph_streams = (frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Dex="Aem"))
         self.__data = data
@@ -792,8 +829,9 @@ class BurstData:
             #: dictiary of H2MM_list objects for each divisor
             self.div_models = dict()
         else:
-            index, times, particles = _sort_usALEX(data, ph_streams, Aex_stream, Aex_shift)
-            self.models = H2MM_list(self, index, times, particles=particles)
+            index, self.times, self.particles = _sort_usALEX(data, ph_streams, Aex_stream, Aex_shift)
+            self.nanos = None
+            self.models = H2MM_list(self, index)
     
     def __getitem__(self, key):
         return self.div_models[key]
@@ -852,7 +890,7 @@ class BurstData:
         """Number of photon streams in the bursts"""
         return self.__nstream
     
-    def new_div(self, divs, name=None, colapse=False, fix_divs=True):
+    def new_div(self, divs, name=None, collapse=False, fix_divs=True):
         """
         Set up a new set of divisors **pusled laser excitation only**
 
@@ -866,7 +904,7 @@ class BurstData:
             The name of the key identifying the divisor scheme. If none specified,
             a name will be assigned automatically, as div{n} where n is an integer.
             The default is None.
-        colapse : bool, optional
+        collapse : bool, optional
             Whether to automatically remove unused indeces, if false, raises an
             error if there are missing indeces.
             
@@ -897,8 +935,8 @@ class BurstData:
         c_divs = _complete_div(self.__data, divs, self.__ph_streams)
         index = _divisor_sort(self.models.index, self.nanos, c_divs)
         if fix_divs:
-            index, uni = _colapse_index(index, nstream, colapse)
-            if colapse:
+            index, uni = _collapse_index(index, nstream, collapse)
+            if collapse:
                 idx_map = -1*np.ones(uni.max()+1, dtype=np.int32)
                 for i, n in enumerate(uni):
                     idx_map[n] = i
@@ -940,7 +978,7 @@ class BurstData:
             a name will be assigned automatically, as div{n} where n is an integer.
             The default is None.
         include_irf_thresh : bool, optional
-            Whether or not to include the IRF threshhold as a separate divisor.
+            Whether or not to include the IRF threshold as a separate divisor.
             The default is False.
 
         Returns
@@ -960,11 +998,11 @@ def _conv_crit(model_list, attr, thresh):
     Parameters
     ----------
     model_list : H2MM_list
-        Object organizing a given divisor scheeme
+        Object organizing a given divisor scheme
     attr : str
         Name of attribute used to identify the ideal model
     thresh : float
-        Theshhold to consider a model converged
+        Threshold to consider a model converged
 
     Returns
     -------
@@ -981,7 +1019,7 @@ def _conv_crit(model_list, attr, thresh):
 
 def _calc_burst_state_counts(path, trans_locs, nstate):
     """
-    Find the nubmer of times a given state occurs in each burst
+    Find the number of times a given state occurs in each burst
 
     Parameters
     ----------
@@ -1012,7 +1050,7 @@ def _calc_burst_code(state_counts):
     Returns
     -------
     burst_code : numpy.ndarray
-        Array of ints with binary representation of which states pressent.
+        Array of ints with binary representation of which states present.
 
     """
     burst_code = np.array([sum([2**i for i, b in enumerate(burst) if b != 0]) for burst in state_counts.T])
@@ -1029,7 +1067,7 @@ def find_ideal(model_list, conv_crit, thresh=None, auto_set=False):
     conv_crit : str
         Which convergence criterion to use.
     thresh : float, optional
-        The threshold diffence between statistical discriminators to determine
+        The threshold difference between statistical discriminators to determine
         if the convergence criterion have been met. 
         The default is None.
 
@@ -1060,7 +1098,16 @@ class H2MM_list:
         attribute) or by :meth:`BurstData.new_div` or :meth:`BurstData.auto_div`
         for making the new divisor schemes.
     
-    
+    Parameters
+    ----------
+    parent : BurstData
+        The creating BurstData object
+    index : list(numpy.ndarray)
+        The photon indices, same shape as the BurstData.times list
+    divisor_scheme : list(np.ndarray), optional
+        The position of divisors per stream. The default is None
+    conserve_memory : bool, optional
+        Whether or not to clear dynamically calculated arrays
     """
     #: dictionary of statistical discriminators as keys and labels for matplotlib axis as values
     stat_disc_labels = {'ICL':"ICL", 'BIC':"BIC", 'BICp':"BIC'"}
@@ -1304,7 +1351,7 @@ class H2MM_list:
         Raises
         ------
         Exception
-            Optmized model of given number of states already exists.
+            Optimized model of given number of states already exists.
 
         Returns
         -------
@@ -1340,7 +1387,7 @@ class H2MM_list:
             that this state model will exist. 
             The default is 4.
         max_state : int, optional
-            Maximum number of states in model that will be optmized, whether or not
+            Maximum number of states in model that will be optimized, whether or not
             the convergence criterion have been met- sets upper bound on duration
             of while loop. 
             The default is 8.
@@ -1353,7 +1400,7 @@ class H2MM_list:
             the ideal state model has been found. 
             The default is 'ICL'.
         thresh : float, optional
-            The threshold diffence between statistical discriminators to determine
+            The threshold difference between statistical discriminators to determine
             if the convergence criterion have been met. The default is None.
         **kwargs : dict
             Keyword arguments passed to optimization function, controls num_cores
@@ -1397,7 +1444,7 @@ class H2MM_list:
         conv_crit : str
             Which convergence criterion to use.
         thresh : float, optional
-            The threshold diffence between statistical discriminators to determine
+            The threshold difference between statistical discriminators to determine
             if the convergence criterion have been met. 
             The default is None.
         auto_set : bool, optional
@@ -1438,16 +1485,24 @@ class H2MM_list:
 # class to store individual h2mm models and their associated parameters
 class H2MM_result:
     """ 
-    Class to represent the results of analysis with H2MM and Viterbi
+    Class to represent the results of analysis with H2MM and *Viterbi*
     
     .. note::
         
-        This class is rarely created direclty be the user, rather usually created
+        This class is rarely created directly be the user, rather usually created
         by :class:`H2MM_list` running :meth:`H2MM_list.optimize` or 
         :meth:`H2MM_list.calc_models` and stored in the :attr:`H2MM_list.opts` 
         list attribute.
-    
-    
+
+    Parameters
+    ----------
+    parent : H2MM_list
+        The creating H2MM_list object
+    model : H2MM_C.h2mm_model
+        The H2MM_C.h2mm_model that has been optimized
+    **kwargs : dict
+        Options passed to H2MM_C.viterbi_path
+
     """
     #: tuple of parameters that include dwell or photon information- cleared by trim data
     large_params = ("path", "scale", "_trans_locs", "_burst_dwell_num", "_dwell_pos", 
@@ -1486,7 +1541,7 @@ class H2MM_result:
     
     def trim_data(self):
         """Remove photon-level arrays, conserves memory for less important models"""
-        for attr in H2MM_result.large_params:
+        for attr in self.large_params:
             if hasattr(self, attr):
                 delattr(self, attr)
                 
@@ -1774,14 +1829,14 @@ class H2MM_result:
     
     def calc_dwell_nanomean(self, ph_streams, irf_thresh):
         """
-        Generate the mean nanotimes of dwells, for given stream and IRF threshhold
+        Generate the mean nanotimes of dwells, for given stream and IRF threshold
 
         Parameters
         ----------
         ph_streams : fretbursts.Ph_sel, or list[fretbursts.Ph_sel]
             The photon stream(s) for which the mean dwell nanotime is to be calculated
         irf_thresh : int or iterable of int
-            The threshold at which to include photons for caclulation of mean nanotime
+            The threshold at which to include photons for calculation of mean nanotime
             Should be set to be at the end of the IRF
 
         Returns
@@ -1789,7 +1844,7 @@ class H2MM_result:
         dwell_nanomean : numpy.ndarray
             Mean nanotime of the given photon stream(s) in aggregate
             NOTE: different photon streams are not separated in calculation,
-            must be called separetly per stream to calculate each mean nanotime
+            must be called separately per stream to calculate each mean nanotime
 
         """
         return calc_dwell_nanomean(self, ph_streams, irf_thresh)

@@ -41,7 +41,7 @@ copyright = '2022, Paul David Harris'
 author = 'Paul David Harris'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.2'
+release = '0.1.3'
 
 
 # -- General configuration ---------------------------------------------------
@@ -55,7 +55,8 @@ extensions = [
         'sphinx.ext.autosummary',
         'sphinx.ext.mathjax',
         'sphinx.ext.intersphinx',
-        'sphinx.ext.napoleon'
+        'sphinx.ext.napoleon',
+        'sphinx_copybutton'
 ]
 
 # Add any paths that contain templates here, relative to this directory.

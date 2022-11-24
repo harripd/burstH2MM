@@ -4,6 +4,8 @@ Customization
 .. currentmodule:: burstH2MM
 
 .. note::
+
+    Download the file used in the analysis here: `HP3_TE300_SPC630.hdf5 <https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5>`_
     For this tutorial, we will assume the following code has been executed prior to all given code snippets (this come from the :ref:`tutorial <tuthidden>`)::
 
         # import statements
@@ -28,7 +30,7 @@ Customization
         # now make the BurstData object
         bdata = hmm.BurstData(frbdata_sel)
         bdata.models.calc_models()
-        # set irf_thresh since later in tutorial we will disucss nanotimes
+        # set irf_thresh since later in tutorial we will discuss nanotimes
         bdata.irf_thresh = np.array([2355, 2305, 220])
 
 Caclulating Nanotimes with Confidence Threshold
@@ -37,12 +39,12 @@ Caclulating Nanotimes with Confidence Threshold
 By default, when calculating |nanohist| and |dwell_nano_mean|, all photons are considered.
 However, not every photon is necessarily the best way to do this, as we can be more confident of some photon state assignments than others.
 This comes by way of the |scale| parameter, which is a measure of the likelihood of the photon being in the state assigned by the *Viterbi* algorithm (it is one of the outputs of the *Viterbi* algorithm itself).
-Now, it does not make sense to use this for calculating dwell duration, or even E/S values, as these are very much dependent on takign the **whole** dwell.
+Now, it does not make sense to use this for calculating dwell duration, or even E/S values, as these are very much dependent on taking the **whole** dwell.
 However, for nanotime parameters, some filtration could be useful (although in our tests, it has never made a significant difference, but we still wanted to provide the option).
 
 .. note::
     The scale parameter is a *likelihood* parameter, therefore it is contained within the interval (0,1).
-    Therefore confidence threshholds must also fall within the iterval [0,1).
+    Therefore confidence thresholds must also fall within the interval [0,1).
     With setting 0 to indicate 
 
 This can be done in two ways:
@@ -50,7 +52,7 @@ This can be done in two ways:
 2. Using |conf_thresh|, which will change stored parameters |nanohist| and |dwell_nano_mean|
 
 For option 1, the appropriately named functions |calc_nanohist| and |calc_dwell_nanomean| exist.
-To set a threshold, use the keyword argument `conf_thresh` like so::
+To set a threshold, use the keyword argument ``conf_thresh`` like so::
 
     # recalculate the nanotime histogram excluding photons with a scale value less than 0.3
     nanohist = hmm.calc_nanohist(bdata.models[2], conf_thresh=0.3)
@@ -94,11 +96,11 @@ To check the order in which photon streams are specified, you can access the |ph
 This will always return a tuple of the actual order of photon streams for instance in the |nanohist| or |dwell_ph_counts| arrays.
 
 So, what if for some reason you want to create a |BurstData| object with a different selection of photon streams?
-For instance, if you know your |AA| stream will introduce undesireable behavior, or just want to compare, you can specify the `ph_streams` keyword argument with a list/tuple of the order of streams you want, defined using FRETBurst Ph_sel objects.
+For instance, if you know your |AA| stream will introduce undesirable behavior, or just want to compare, you can specify the ``ph_streams`` keyword argument with a list/tuple of the order of streams you want, defined using FRETBurst Ph_sel objects.
 
 .. note::
 
-    burstH2MM is smart, in calculating E and S values, it will do so correctly regarless of the order in which |ph_streams| is specified, because it automatically identifies which stream is which for the appropriate calculations.
+    burstH2MM is smart, in calculating E and S values, it will do so correctly regardless of the order in which |ph_streams| is specified, because it automatically identifies which stream is which for the appropriate calculations.
     This also means that if there is no |AA| stream, then an error will be raised if you attempt to access a stoichiometry based value.
 
 So let's demonstrate this, where we will perform |H2MM| in the original form, using only |DD| and |DA| streams::
@@ -119,7 +121,7 @@ Great! Now we can look at the dwell FRET histogram::
 .. image:: images/spEhist.png
 
 
-Just be aware, if you try to get a stiochiometry based value (any of them!) you will get an error:
+Just be aware, if you try to get a stoichiometry based value (any of them!) you will get an error:
 
 >>> hmm.dwell_ES_scatter(spdata.models[2])
 AttributeError: Parent BurstData must include AexAem stream
@@ -176,9 +178,9 @@ So what will this do?
 Now, the number of divisors is specified *per stream*, meaning the |DD| stream will have 2 divisors, while the |DA| and |AA| streams will have only 1 divisor.
 The even distribution of nanotimes between the divisors will however be maintained.
 
-If you look at the documentation, you will notice that there is a keyword argument `include_irf_thresh`.
-This adds a divisor to the already existing divisors, which is the threshhold set in |irf_thresh|.
-So, if you call |auto_div| with `inlcude_irf_thresh=True`, there will be one extra divisor than if you had called it with `inlcude_irf_thresh=Fale` (the default).::
+If you look at the documentation, you will notice that there is a keyword argument ``include_irf_thresh``.
+This adds a divisor to the already existing divisors, which is the threshold set in |irf_thresh|.
+So, if you call |auto_div| with ``inlcude_irf_thresh=True``, there will be one extra divisor than if you had called it with ``inlcude_irf_thresh=False`` (the default).::
 
     bdata.irf_thresh = np.array([2355, 2305, 220])
     nameirf = bdata.auto_div(2, include_irf_thresh=True)
@@ -209,10 +211,10 @@ The function call looks like this::
 Customizing optimizations
 -------------------------
 
-As a wrapper around `H2MM_C <H2MM_C>`, burstH2MM handles a lot of the inner details of working with  `H2MM_C <H2MM_C>` automatically, however, it does allow the user to override these defaults.
+As a wrapper around H2MM_C_, burstH2MM handles a lot of the inner details of working with H2MM_C_ automatically, however, it does allow the user to override these defaults.
 
 |calc_models| automatically optimizes several |H2MM| models, and the initial |H2MM| models used in those optmizations are provided in those optimizations.
-If you have a look at the documenation, there also exists the |optimize| method, and its first argument is an :class:`H2MM_C.h2mm_model`, this method is the actual method that makes each |H2MM_result| object, and relies on :meth:`H2MM_C.h2mm_model.optimize` to optimize the input :class:`H2MM_C.h2mm_model`, which is the basis of the |H2MM_result| object.
+If you have a look at the documentation, there also exists the |optimize| method, and its first argument is an :class:`H2MM_C.h2mm_model`, this method is the actual method that makes each |H2MM_result| object, and relies on :meth:`H2MM_C.h2mm_model.optimize` to optimize the input :class:`H2MM_C.h2mm_model`, which is the basis of the |H2MM_result| object.
 |calc_models| actually calls |optimize| for each state model, and uses :func:`H2MM_C.factory_h2mm_model` to make the input models.
 
 Using |optimize|
@@ -252,7 +254,7 @@ For instance::
 
     .. _replace_kwarg:
 
-    If a given state-model has already been optimized, you must specify the keyword argument `replace=True`::
+    If a given state-model has already been optimized, you must specify the keyword argument ``replace=True``::
 
         # this will not optimize if number of states already exists in H2MM_list
         bdata.models.optimize(init)
@@ -263,22 +265,23 @@ Using |calc_models|
 *******************
 
 |calc_models| functions in essentially the same way.
-*NOTE: the folloiwng code assumes only that the initializing code has been run, but not the examples using |optimize|, if the keyword arguments `replace=True` is not specified, then the existing optimizations will note be re-optimized.*
+
+*NOTE: the folloiwng code assumes only that the initializing code has been run, but not the examples using* |optimize|, *if the keyword arguments ``replace=True`` is not specified, then the existing optimizations will note be re-optimized.*
 See the previous :ref:`note <replace_kwarg>`::
 
     bdata.models.calc_models(max_iter=7200)
 
 So now all optimizations will run for a maximum of 7200 iterations instead of the default of 3600.
 
-You can even specify initial models using |calc_models|, using the `models` keyword argument.
-For this, simply hand `models` a list of :class:`H2MM_C.h2mm_model` objects.
+You can even specify initial models using |calc_models|, using the ``models`` keyword argument.
+For this, simply hand ``models`` a list of :class:`H2MM_C.h2mm_model` objects.
 |calc_models| will then use those models as initial models.
-However, still obeys the other settings provided, eg. it will start optimizing the model with `min_state` number of states, and optimize at least to `to_state`, until `conv_crit` or `max_state` number of states is reached.
-|calc_models| will use the model for that number of states given to `models`, and if such a model does not exist within `models`, it will fall back on using :func:`H2MM_C.factory_h2mm_model` to generate the function.
+However, still obeys the other settings provided, eg. it will start optimizing the model with ``min_state`` number of states, and optimize at least to ``to_state``, until ``conv_crit`` or ``max_state`` number of states is reached.
+|calc_models| will use the model for that number of states given to ``models``, and if such a model does not exist within ``models``, it will fall back on using :func:`H2MM_C.factory_h2mm_model` to generate the function.
 
 .. note::
 
-    If you are trying to bound optimizations with `bounds_func` and `bounds` keyword arguments, be aware that you must use them such that the will work for all optimizations.
+    If you are trying to bound optimizations with ``bounds_func`` and ``bounds`` keyword arguments, be aware that you must use them such that the will work for all optimizations.
     This means that specifying arrays for the trans/obs/prior limits will not work.
     If you wish to set the bounds for each state-model optimization, use |optimize| instead.
 
@@ -308,10 +311,10 @@ So let's see an example::
     # run optimization with some initial models
     bdata.models.calc_models(models=inits)
 
-This will optimize even the 1 state and 4 state models, using :func:`H2MM_C.factory_h2mm_model` to create them. But when it optimizes the 2 state model, it will use `init2`, and the 3 state model will use `init3`
+This will optimize even the 1 state and 4 state models, using :func:`H2MM_C.factory_h2mm_model` to create them. But when it optimizes the 2 state model, it will use ``init2``, and the 3 state model will use ``init3``.
 
 .. |H2MM| replace:: H\ :sup:`2`\ MM
-.. _H2MM_C: https://pypi.org/project/H2MM-C
+.. _H2MM_C: `H2MM_C <https://pypi.org/project/H2MM-C>`
 .. |DD| replace:: D\ :sub:`ex`\ D\ :sub:`em`
 .. |DA| replace:: D\ :sub:`ex`\ A\ :sub:`em`
 .. |AA| replace:: A\ :sub:`ex`\ A\ :sub:`em`

@@ -13,3 +13,4 @@ How To Guides
     ControlPlot
     AccessDiv
     Customization
+    Simulation
