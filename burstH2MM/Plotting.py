@@ -591,7 +591,7 @@ def dwell_param_hist(model, param, streams=None, dwell_pos=None, states=None,
         for j, param_s in enumerate(param_func(param_n, mask, streams, model.parent.parent.ph_streams)):
             new_kwargs = in_kwargs.copy()
             new_kwargs.update(skwargs[j])
-            collections[i].append(ax.hist(param_s, **new_kwargs)[2])
+            collections[-1].append(ax.hist(param_s, **new_kwargs)[2])
     ax.set_xlabel(model.param_labels[param], **label_kwargs)
     ax.set_ylabel("counts", **label_kwargs)
     return collections
@@ -1005,8 +1005,9 @@ def dwell_S_hist(model, ax=None, states=None, state_kwargs=None,add_corrections=
     in_kwargs = kwargs.copy()
     in_kwargs.update({'alpha':0.5})
     S = "dwell_S_corr" if add_corrections else "dwell_S"
-    collections = dwell_param_hist(model, S, state_kwargs=state_kwargs, label_kwargs=label_kwargs, 
-                                   dwell_pos=dwell_pos, **in_kwargs)
+    collections = dwell_param_hist(model, S, states=states, state_kwargs=state_kwargs, 
+                                   label_kwargs=label_kwargs, dwell_pos=dwell_pos, 
+                                   **in_kwargs)
     collections = [collection[0] for collection in collections]
     return collections
 
@@ -1153,8 +1154,9 @@ def dwell_E_tau_scatter(model, ax=None, add_corrections=False, streams=[frb.Ph_s
 
     """
     E = 'dwell_E_corr' if add_corrections else 'dwell_E'
-    collections = dwell_params_scatter(model, "dwell_nano_mean", E, ax=ax, streams=streams, 
-                                       state_kwargs=state_kwargs, stream_kwargs=stream_kwargs, 
+    collections = dwell_params_scatter(model, "dwell_nano_mean", E, ax=ax, states=states, 
+                                       state_kwargs=state_kwargs, streams=streams, 
+                                       stream_kwargs=stream_kwargs, 
                                        label_kwargs=label_kwargs, dwell_pos=dwell_pos, 
                                        kwarg_arr=kwarg_arr, **kwargs)
     return collections
