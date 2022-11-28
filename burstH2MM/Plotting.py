@@ -582,7 +582,7 @@ def dwell_param_hist(model, param, streams=None, dwell_pos=None, states=None,
     bin_style = {"bar":np.arange(np.nanmax(param_n)+1), "ratio":np.arange(0,1.05, 0.05)}
     state = model.dwell_state
     in_kwargs = kwargs.copy()
-    if model.dwell_params[param] in bin_style:
+    if model.dwell_params[param] in bin_style and 'bins' not in kwargs:
         in_kwargs.update({'bins':bin_style[model.dwell_params[param]]})
     collections = list()
     for i, skwargs in zip(states, kwarg_arr):
