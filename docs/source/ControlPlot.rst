@@ -5,6 +5,11 @@ Control plotting functions
 
 .. currentmodule:: burstH2MM
 
+.. seealso::
+
+    View this how-to guide as a jupyter notebook
+    Download :download:`How-To-Plotting-Functions.ipynb <notebooks/How-To-Plotting-Functions.ipynb>`
+
 .. note::
 
     Download the file used in the analysis here: `HP3_TE300_SPC630.hdf5 <https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5>`_
@@ -40,7 +45,7 @@ Customizing state plotting
 The central plotting functions of burstH2MM are all highly customizable.
 
 The first and simplest form of customization is using the ``ax`` keyword argument, which is universal to all plotting functions.
-This lets you make a matplotlix.axes.Axes_ (usually made with plt.subplots()_ or related functions), and then plot all elements within that axes.
+This lets you make a matplotlix.axes.Axes_ (usually made with `plt.subplots()`_ or related functions), and then plot all elements within that axes.
 This also lets overlapping different plots into one axes.
 
 So here's an example, and we'll set the title of the axes afterward::
@@ -118,13 +123,13 @@ Here's a simple example, where we assign a color to each state in the |dwell_ES_
 So what happened here?
 Since models[2] has 3 states, the input ``state_kwargs`` keyword argument needs to be a list or tuple of length 3.
 The model stores states in arrays, which gives the states an arbitrary order.
-Each element of the list is passed *per state* to the matplotlib plt.scatter()_ function as \*\*kwargs, according to the order established in the model.
+Each element of the list is passed *per state* to the matplotlib `plt.scatter()`_ function as \*\*kwargs, according to the order established in the model.
 So the first state gets the keyword argument ``color='m'``, the second state ``color='yellow'`` and the third ``color='m'``.
 
 .. note::
 
     The different plotting functions use different matplotlib and seaborn functions.
-    So plotting functions that create histograms use plt.hist()_, while scatter functions use plt.scatter()_, and kde plot functions use sns.kdeplot()_
+    So plotting functions that create histograms use `plt.hist()`_, while scatter functions use `plt.scatter()`_, and kde plot functions use `sns.kdeplot()`_
 
 Only displaying certain states
 ------------------------------
@@ -190,7 +195,7 @@ For this we will use the |dwell_tau_hist| function.
 
 So let's see the default appearance first::
 
-    fig, ax = plt.subplots(figsize=(3, 5))
+    fig, ax = plt.subplots(figsize=(5, 3))
     hmm.dwell_tau_hist(bdata.models[2], ax=ax)
 
 .. image:: images/dwellnthist.png
@@ -244,18 +249,19 @@ But now, the problem is we have no idea which state goes with what, so let's use
 
 .. image:: images/dwellnanomean1scbstream.png
 
-Finally, ``stream_kwargs`` and ``state_kwargs`` work together: the two dictionaries for a particular stream and state combination are merged::
+Finally, ``stream_kwargs`` and ``state_kwargs`` work together: the two dictionaries for a particular stream and state combination are merged
+
+.. note::
+
+    In the dictionary merging process, if the same key is present in both dictionaries, then the value in `stream_kwargs` will be used, and the values in ``state_kwargs`` over-written.
+
+::
 
     fig, ax = plt.subplots(figsize=(5, 3))
     streams = [frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Dex="Aem")]
     stream_kw = [{'color':'b'}, {'color':'r'}]
     state_kw = [{'edgecolor':'darkblue'}, {'edgecolor':'darkorange'}, {'edgecolor':'olive'}]
     hmm.dwell_tau_hist(bdata.models[2], ax=ax, streams=streams, stream_kwargs=stream_kw, state_kwargs=state_kw)
-
-
-.. note::
-
-    In the dictionary merging process, if the same key is present in both dictionaries, then the value in `stream_kwargs` will be used, and the values in `state_kwargs` over-written.
 
 .. image:: images/dwellnanomeansskw.png
 
@@ -268,10 +274,10 @@ In ``kwarg_arr``, you provide an array of dictionaries that will be the keyword 
 
 .. note::
 
-    `kwarg_arr` is meant to take the place of the combination of `state_kwargs` and `stream_kwargs`.
-    As such, `kwarg_arr` and `state_kwargs` cannot be specified at the same time.
-    If `stream_kwargs` is specified at the same time as `kwarg_arr`, then burstH2MM will make a check.
-    If `kwarg_arr` is formatted like `state_kwargs`, then it will be treated like `state_kwargs`.
+    ``kwarg_arr`` is meant to take the place of the combination of ``state_kwargs`` and ``stream_kwargs``.
+    As such, ``kwarg_arr`` and ``state_kwargs`` cannot be specified at the same time.
+    If ``stream_kwargs`` is specified at the same time as ``kwarg_arr``, then burstH2MM will make a check.
+    If ``kwarg_arr`` is formatted like `state_kwargs`, then it will be treated like ``state_kwargs``.
     On the other hand, if it is formatted as demonstrated below, `stream_kwargs` will be ignored, and a warning will be presented.
 
 ::
@@ -469,8 +475,8 @@ If ``True`` then the order is simply **State0**, **State1** ... then finally, th
 .. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <Plotting.dwell_ES_scatter>`
 .. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <Plotting.dwell_tau_hist>`
 .. |dwell_E_hist| replace:: :func:`dwell_E_hist() <Plotting.dwell_E_hist>`
-.. |raw_nanotime_hist| replace:: :func:`raw_nanotime_hist <Plotting.raw_nanotime_hist>`
-.. |burst_ES_scatter| replace:: :func:`burst_ES_scatter <Plotting.burst_ES_scatter>`
+.. |raw_nanotime_hist| replace:: :func:`raw_nanotime_hist() <Plotting.raw_nanotime_hist>`
+.. |burst_ES_scatter| replace:: :func:`burst_ES_scatter() <Plotting.burst_ES_scatter>`
 
 
 .. _plt.scatter(): https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.scatter.html

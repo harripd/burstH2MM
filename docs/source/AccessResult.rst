@@ -3,6 +3,11 @@ Access the results of an optimization
 
 .. currentmodule:: burstH2MM
 
+.. seealso::
+
+    View this how-to guide as a jupyter notebook
+    Download :download:`How-To-ResultsAccess.ipynb <notebooks/How-To-ResultsAccess.ipynb>`
+
 Accessing results
 -----------------
 
@@ -157,7 +162,7 @@ Below is a list and description of the different possible parameters and their d
 |                      |                                                                | array         |
 +----------------------+----------------------------------------------------------------+---------------+
 | |burst_state_counts| | Counts per dwell of states present within bursts               | state burst   |
-|                      |                                                                | aray          |
+|                      |                                                                | array         |
 +----------------------+----------------------------------------------------------------+---------------+
 | |burst_type|         | Bininary code specifying the state present within each burst   | burst array   |
 +----------------------+----------------------------------------------------------------+---------------+
@@ -168,7 +173,7 @@ Below is a list and description of the different possible parameters and their d
 | |dwell_state|        | The state of each dwell                                        | dwell array   |
 +----------------------+----------------------------------------------------------------+---------------+
 | |dwell_pos|          | Numerical indicator of location within the                     | dwell array   |
-|                      | burst of each dwell | dwell array                              |               |
+|                      | burst of each dwell                                            |               |
 +----------------------+----------------------------------------------------------------+---------------+
 | |dwell_ph_counts|    | Number of photons in each stream and dwell                     | stream dwell  |
 |                      |                                                                | array         |
@@ -317,7 +322,7 @@ array([4, 3, 4, ..., 4, 4, 6])
 .. |list_bic| replace:: :attr:`H2MM_list.BIC <BurstSort.H2MM_list.BIC>`
 .. |list_bicp| replace:: :attr:`H2MM_list.BICp <BurstSort.H2MM_list.BICp>`
 .. |list_icl| replace:: :attr:`H2MM_list.ICL <BurstSort.H2MM_list.ICL>`
-.. |calc_models| replace:: :meth:`H2MM_list <BurstSort.H2MM_list.calc_models>`
+.. |calc_models| replace:: :meth:`H2MM_list.calc_models() <BurstSort.H2MM_list.calc_models>`
 .. |opts| replace:: :attr:`H2MM_list.opts <BurstSort.H2MM_list.opts>`
 .. |H2MM_result| replace:: :class:`H2MM_result <BurstSort.H2MM_result>`
 .. |trim_data| replace:: :meth:`H2MM_result.trim_data() <BurstSort.H2MM_result.trim_data>`

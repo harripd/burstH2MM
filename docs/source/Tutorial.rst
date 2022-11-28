@@ -5,9 +5,10 @@ Tutorials
 
 .. contents::
 
-Please check out the tutorial Jupyter notebooks, so you can run the code as you learn.
-Also, burstH2MM was primarily designed for use with Jupyter notebooks, allowing for easy recording of your data analysis.
+.. seealso::
 
+    View this tutorial as a jupyter notebook
+    Download :download:`Tutorial.ipynb <notebooks/Tutorial.ipynb>`
 
 .. _tuthidden:
 

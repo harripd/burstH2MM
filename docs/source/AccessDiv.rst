@@ -3,6 +3,11 @@ Access Divisors and Models
 
 .. currentmodule:: burstH2MM
 
+.. seealso::
+
+    View this how-to guide as a jupyter notebook
+    Download :download:`How-To-AccessDivisor.ipynb <notebooks/How-To-AccessDivisor.ipynb>`
+
 .. note::
 
     Download the file used in the analysis here: `HP3_TE300_SPC630.hdf5 <https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5>`_
@@ -49,7 +54,7 @@ These can be referenced directly as indexes of the |H2MM_list| object
 >>> type(amodel)
 <class 'burstH2MM.BurstSort.H2MM_result'>
 
-From these |H2MM_result| objects, we have access to the whole set of model- and dwell-based parameters of that particularl optimization.
+From these |H2MM_result| objects, we have access to the whole set of model- and dwell-based parameters of that particular optimization.
 
 .. note::
 
@@ -70,7 +75,7 @@ burstH2MM.BurstSort.H2MM_list
 
 .. note::
 
-    Note that we use the `name` returned.
+    Note that we use the ``name`` returned.
 
 Now, it can be annoying to constantly have to save the name of each new divisor, so burstH2MM offers an alternative: you can specify the name yourself before creating the divisor.
 
@@ -95,7 +100,7 @@ Now, let's see the code as it was before in the :ref:`tutorial <tuthidden>`::
 
 .. image:: images/acdivobjreficl.png
 
-Which we can re-write as ::
+Which we can re-write as: ::
 
     models_list = bdata.models
     models_list.calc_models()
@@ -103,7 +108,7 @@ Which we can re-write as ::
 
 .. image:: images/acdivobjreficl.png
 
-Finally, since these models are all connected, we can even swap the last lines like this ::
+Finally, since these models are all connected, we can even swap the last lines like this: ::
 
     models_list = bdata.models
     models_list.calc_models()
@@ -112,17 +117,17 @@ Finally, since these models are all connected, we can even swap the last lines l
 
 .. image:: images/acdivobjreficl.png
 
-Now let's look at this pattern with divisors, first we'll initiate this code, and pull out the variables ::
+Now let's look at this pattern with divisors, first we'll initiate this code, and pull out the variables: ::
 
     bdata.auto_div(1, name="one_div")
     # extract the H2MM_list divisor model into its own variable
     div_list = bdata.div_models["one_div"]
 
-So this ::
+So this: ::
 
     bdata.div_models["one_div"].calc_models()
 
-is the same as this::
+is the same as this: ::
 
     div_list.calc_models()
 

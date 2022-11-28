@@ -3,6 +3,11 @@ Customization
 
 .. currentmodule:: burstH2MM
 
+.. seealso::
+
+    View this how-to guide as a jupyter notebook
+    Download :download:`How-To-Customization.ipynb <notebooks/How-To-Customization.ipynb>`
+
 .. note::
 
     Download the file used in the analysis here: `HP3_TE300_SPC630.hdf5 <https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5>`_
@@ -45,7 +50,7 @@ However, for nanotime parameters, some filtration could be useful (although in o
 .. note::
     The scale parameter is a *likelihood* parameter, therefore it is contained within the interval (0,1).
     Therefore confidence thresholds must also fall within the interval [0,1).
-    With setting 0 to indicate 
+    Setting to 0 will result in all photons being considered.
 
 This can be done in two ways:
 1. Using functions, without changing the stored parameter values
@@ -79,9 +84,10 @@ And the |nanohist| and |dwell_nano_mean| attributes of the |H2MM_result| attribu
 Customizing Photon Streams (mp vs sp |H2MM|)
 --------------------------------------------
 
-You may have noticed that in :ref:`controlplot` that when arrays are organized by photon stream, them always go in the order |DD|, |DA|, |AA|.
+You may have noticed that in :ref:`controlplot` that when arrays are organized by photon stream, they always go in the order |DD|, |DA|, |AA|.
 This is the default, but if
-a. The data does not have alternating excitation or
+
+a. The data does not have alternating excitation **or**
 b. You have explicitly specified when creating the |BurstData| object.
 
 then the photon streams may not follow this pattern.
@@ -180,7 +186,7 @@ The even distribution of nanotimes between the divisors will however be maintain
 
 If you look at the documentation, you will notice that there is a keyword argument ``include_irf_thresh``.
 This adds a divisor to the already existing divisors, which is the threshold set in |irf_thresh|.
-So, if you call |auto_div| with ``inlcude_irf_thresh=True``, there will be one extra divisor than if you had called it with ``inlcude_irf_thresh=False`` (the default).::
+So, if you call |auto_div| with ``inlcude_irf_thresh=True``, there will be one extra divisor than if you had called it with ``inlcude_irf_thresh=False`` (the default)::
 
     bdata.irf_thresh = np.array([2355, 2305, 220])
     nameirf = bdata.auto_div(2, include_irf_thresh=True)
@@ -266,7 +272,7 @@ Using |calc_models|
 
 |calc_models| functions in essentially the same way.
 
-*NOTE: the folloiwng code assumes only that the initializing code has been run, but not the examples using* |optimize|, *if the keyword arguments ``replace=True`` is not specified, then the existing optimizations will note be re-optimized.*
+*NOTE: the folloiwng code assumes only that the initializing code has been run, but not the examples using* |optimize|, *if the keyword arguments* ``replace=True`` *is not specified, then the existing optimizations will note be re-optimized.*
 See the previous :ref:`note <replace_kwarg>`::
 
     bdata.models.calc_models(max_iter=7200)
@@ -276,7 +282,7 @@ So now all optimizations will run for a maximum of 7200 iterations instead of th
 You can even specify initial models using |calc_models|, using the ``models`` keyword argument.
 For this, simply hand ``models`` a list of :class:`H2MM_C.h2mm_model` objects.
 |calc_models| will then use those models as initial models.
-However, still obeys the other settings provided, eg. it will start optimizing the model with ``min_state`` number of states, and optimize at least to ``to_state``, until ``conv_crit`` or ``max_state`` number of states is reached.
+However, |calc_models| still obeys the other settings provided, eg. it will start optimizing the model with ``min_state`` number of states, and optimize at least to ``to_state``, until ``conv_crit`` or ``max_state`` number of states is reached.
 |calc_models| will use the model for that number of states given to ``models``, and if such a model does not exist within ``models``, it will fall back on using :func:`H2MM_C.factory_h2mm_model` to generate the function.
 
 .. note::
@@ -311,10 +317,10 @@ So let's see an example::
     # run optimization with some initial models
     bdata.models.calc_models(models=inits)
 
-This will optimize even the 1 state and 4 state models, using :func:`H2MM_C.factory_h2mm_model` to create them. But when it optimizes the 2 state model, it will use ``init2``, and the 3 state model will use ``init3``.
+This will optimize even the 1 state and 4 state models, if they have not already been optimized, using :func:`H2MM_C.factory_h2mm_model` to create them. But when it optimizes the 2 state model, it will use ``init2``, and the 3 state model will use ``init3``.
 
 .. |H2MM| replace:: H\ :sup:`2`\ MM
-.. _H2MM_C: `H2MM_C <https://pypi.org/project/H2MM-C>`
+.. _H2MM_C: https://h2mmpythonlib.readthedocs.io
 .. |DD| replace:: D\ :sub:`ex`\ D\ :sub:`em`
 .. |DA| replace:: D\ :sub:`ex`\ A\ :sub:`em`
 .. |AA| replace:: A\ :sub:`ex`\ A\ :sub:`em`
@@ -362,4 +368,4 @@ This will optimize even the 1 state and 4 state models, using :func:`H2MM_C.fact
 .. |dwell_ES_scatter| replace:: :func:`dwell_ES_scatter() <Plotting.dwell_ES_scatter>`
 .. |dwell_tau_hist| replace:: :func:`dwell_tau_hist() <Plotting.dwell_tau_hist>`
 .. |dwell_E_hist| replace:: :func:`dwell_E_hist() <Plotting.dwell_E_hist>`
-.. |raw_nanotime_hist| replace:: :func:`raw_nanotime_hist <Plotting.raw_nanotime_hist>`
+.. |raw_nanotime_hist| replace:: :func:`raw_nanotime_hist() <Plotting.raw_nanotime_hist>`

@@ -2,3 +2,4 @@ burstH2MM.egg-info
 __pycache__
 docs/build
 burstH2MM/__pycache__
+.ipynb_checkpoints

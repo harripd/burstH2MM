@@ -1428,7 +1428,7 @@ class H2MM_list:
                 new_kwargs = {'replace':True}
                 new_kwargs.update(kwargs)
                 self.optimize(model, **new_kwargs)
-            elif len(self.opts) < i or self.opts[i-1] is None:
+            elif len(self.opts) < i or ('replace' in kwargs and kwargs['replace']) or self.opts[i-1] is None:
                 model = h2.factory_h2mm_model(i, self.ndet, bounds=kwargs.get('bounds', None))
                 self.optimize(model, **kwargs)
             i += 1
@@ -1765,7 +1765,6 @@ class H2MM_result:
                               for ph_stream in self.parent.parent.ph_streams])[0,0]
             Cr = np.argwhere([ph_stream == frb.Ph_sel(Aex='Aem') 
                               for ph_stream in self.parent.parent.ph_streams])[0,0]
-            print(Dr, Ar, Cr)
             D = self.dwell_ph_counts_bg[Dr,:]
             C = self.dwell_ph_counts_bg[Cr,:]
             A = self.dwell_ph_counts_bg[Ar,:]
