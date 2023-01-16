@@ -16,14 +16,19 @@ Most functions take a H2MM_result object as input, and customization is provided
 through various keyword arguments.
 """
 
-from itertools import cycle, repeat
+from collections.abc import Iterable
+from itertools import cycle, repeat, permutations
 import functools
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
-import fretbursts as frb
 import seaborn as sns
+
+import fretbursts as frb
+
+
 from . import BurstSort
+from . import Masking
 
 #: defaults for colors of streams
 _color_dict = {frb.Ph_sel(Dex="Dem"):'g', frb.Ph_sel(Dex="Aem"):'r', frb.Ph_sel(Aex="Aem"):'purple'}
@@ -282,9 +287,11 @@ def _make_dwell_pos(model, dwell_pos):
                 pos_mask = dwell_pos
             else:
                 raise ValueError(f'dwell_pos inorrect size, got {dwell_pos.size}, expected {model.dwell_pos.size}')
-        elif dwell_pos.dtype == int:
+        elif np.issubdtype(dwell_pos.dtype, np.integer):
             if dwell_pos.max() > model.model.nstate:
                 raise ValueError(f'dwell_pos includes non-exitstent states, model has only {model.model.nstate} states')
+            elif dwell_pos.min() < 0:
+                raise ValueError('dwell_pos incldues negative values, only non-negative values allowed')
             pos_mask = np.sum([model.dwell_pos == i for i in dwell_pos], axis=0) > 0
     elif callable(dwell_pos):
         pos_mask = dwell_pos(model)
@@ -423,6 +430,132 @@ def scatter_ES(model, ax=None, add_corrections=False, state_kwargs=None, **kwarg
     collection = ax.scatter(E, S, **kwargs)
     return collection
     
+
+@_useideal
+def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,  
+                   states=None, positions=0.5,rotate=True, sep=2e-2, fstring='3.0f', 
+                   from_arrow='-', to_arrow='-|>', state_kwargs=None, **kwargs):
+    """
+    Generate arrows between states in E-S plot indicating the transition rate.
+
+    Parameters
+    ----------
+    model : H2MM_result
+        H2MM_result to plot the transition rate arrows.
+    ax : matplotlib.axes._subplots.AxesSubplot, optional
+        Axes to draw scatterplot in. The default is None.
+    add_corrections : bool, optional
+        Use the corrected (True) or raw (False) E values. The default is False.
+    min_rate : float, optional
+        Minimum transition rate (in seconds) to plot, ignored if states is specified.
+        The default is 1e1.
+    states : tuple[tuple[int, int]], optional
+        Manually specify which transition rate to plot. Specify as tuple of 2 tuples,
+        each 2 tuple as (from_state, to_state). If None, automatically generate
+        transition rates. The default is None.
+    positions : float or numpy.ndarray, optional
+        The position of the transition rate label, specified as fraction of distance
+        between states of transition rate. If specified as float, same position is
+        used for all rates, if specified as numpy.ndarray, then each rate
+        is specified as matrix [from_state][to_state] (diagonals ignored). 
+        The default is 0.5.
+    rotate : bool, optional
+        Whether or not to rotate the transition rate label. The default is True.
+    sep : float, optional
+        When transition rates [i,j] and [j,i] are specified, the offset in data 
+        points, to add to the positions (to prevent overlap between foroward and 
+        backward transition rates). 
+        The default is 2e-2.
+    fstring : str, optional
+        The format string defining how to format the transition rate. 
+        The default is '3.0f'.
+    from_arrow : str, optional
+        Format string for arrow pointing to from_state (value passed to 'arrowstyle'). 
+        The default is '-'.
+    to_arrow : str, optional
+        Format string for arrow pointing to to_state (value passed to 'arrowstyle'). 
+        The default is '-|>'.
+    state_kwargs : tuple[tuple[dict]], optional
+        Transition specific keyword arguments to be passed to ax.annotate(). 
+        The default is None.
+    **kwargs : dict
+        keyword arguments passed to ax.annotate().
+
+    Raises
+    ------
+    ValueError
+        One or more keyword arguments contains invalid types or is of invalid length.
+
+    Returns
+    -------
+    annos : list[list[matplotlib.text.Annotation]]
+        List of list of annotations added to the plot.
+
+    """
+    ax = _check_ax(ax)
+    if states is None:
+        states = tuple((i, j) for i, j in permutations(range(model.nstate), 2) if model.trans[i,j] >= min_rate)
+    else:
+        for st in states:
+            if len(st) != 2 and np.any([not isinstance(s,int) for s in st]):
+                raise ValueError("States must be tuple of (from_state, to_state)")
+    if state_kwargs is None:
+        state_kwargs = [[kwargs for j in range(model.nstate)] for i in range(model.nstate)]
+    if isinstance(positions, (float, int)):
+        positions = np.ndarray([[positions for j in range(model.nstate)] for i in range(model.nstate)])
+    if not isinstance(to_arrow, str):
+        raise ValueError("to_arrow must be valid ax.annotate arrowstyle format string")
+    if not isinstance(from_arrow, str):
+        raise ValueError("from_arrow must be valide ax.annotate arrowstyle format string")
+    base_kwargs = dict(arrowprops={'color':'k'}, xycoords='data', textcoords='data', 
+                       horizontalalignment='center', verticalalignment='center',
+                       rotation_mode='anchor', transform_rotates_text=True)
+    E = model.E_corr if add_corrections else model.E
+    S = model.S_corr if add_corrections else model.S
+    annos = list()
+    for i, j in states:
+        tstr = ('%%%s' % fstring) % model.trans[i,j]
+        try:
+            st_kw = _update_ret(base_kwargs, state_kwargs[i][j])
+        except IndexError:
+            raise IndexError(f"state_kwargs too short, state_kwargs[{i}][{j}] out of range")
+        except Exception as e:
+            raise TypeError("state_kwargs or element therof of incompatible type/shape") from e
+        orig = np.array([E[i], S[i]])
+        dest = np.array([E[j], S[j]])
+        try:
+            text = (dest - orig)*positions[i][j] + orig 
+        except IndexError:
+            raise IndexError(f"positions too short, positions[{i}][{j}] out of range")
+        except Exception as e:
+            raise ValueError("positions of incompatible argument") from e
+        if (j, i) in states:
+            dist = np.sqrt((E[j]-E[i])**2+(S[j]-S[i])**2)
+            shift = ([-(S[j]-S[i]), (E[j]-E[i])]) / dist * sep
+            orig += shift
+            dest += shift
+            text += shift
+        if rotate:
+            if E[j] - E[i] != 0.0:
+                angle = np.arctan((S[j]-S[i])/(E[j]-E[i])) * 180 / np.pi
+            else:
+                angle = 90.0 if S[j] > S[i] else -90.0
+        else:
+            angle = 0.0
+        st_kw['arrowprops']['arrowstyle'] = to_arrow
+        anno = [None for _ in range(2)]
+        try:
+            anno[0] = ax.annotate(tstr, dest, xytext=text, rotation=angle, **st_kw)
+        except Exception as e:
+            raise ValueError("One or more invalid inputs to ax.annotate") from e
+        st_kw['arrowprops']['arrowstyle'] = from_arrow
+        try:
+            anno[1] = ax.annotate(tstr, orig, xytext=text, rotation=angle, **st_kw)
+        except Exception as e:
+            raise ValueError("One or more invalid inputs to ax.annotate") from e
+            annos.append(anno)
+    return annos
+
 
 @_useideal
 def axline_E(model, ax=None, add_corrections=False, horizontal=False, state_kwargs=None,
@@ -600,7 +733,7 @@ def dwell_param_hist(model, param, streams=None, dwell_pos=None, states=None,
 @_useideal
 def dwell_params_scatter(model, paramx, paramy, states=None, state_kwargs=None, dwell_pos=None, 
                          streams=None, stream_kwargs=None, label_kwargs=None, kwarg_arr=None,
-                         ax=None,  **kwargs):
+                         ax=None,  plot_type='scatter', **kwargs):
     """
     Generate a plot of one parameter against another of dwells in a H2MM_result
 
@@ -639,6 +772,9 @@ def dwell_params_scatter(model, paramx, paramy, states=None, state_kwargs=None, 
         The default is None.
     ax : matplotlib.axes._subplots.AxesSubplot, optional
         Axes to draw histogram(s) in. The default is None.
+    plot_type : str, optional
+        'scatter' or 'kde' whether to plot with ax.scatter or sns.kdeplot.
+        The default is 'scatter'
     **kwargs : TYPE
         Universal kwargs handed to ax.hist.
 
@@ -659,7 +795,7 @@ def dwell_params_scatter(model, paramx, paramy, states=None, state_kwargs=None, 
     if paramy not in model.dwell_params:
         raise ValueError(f"Invalid parameter, param: '{paramy}', must be one of {[key for key in model.dwell_params.keys()]}")
     if label_kwargs is None:
-        label_kwargs = {}
+        label_kwargs = dict()
     elif not isinstance(label_kwargs, dict):
         raise ValueError(f"label_kwargs must be dictionary of keword arguments, got {type(label_kwargs)}")
     states, streams, kwarg_arr = _process_kwargs(model, states, streams, state_kwargs, stream_kwargs, kwarg_arr)
@@ -667,13 +803,18 @@ def dwell_params_scatter(model, paramx, paramy, states=None, state_kwargs=None, 
     paramx_n = getattr(model, paramx)
     paramy_n = getattr(model, paramy)
     ax = _check_ax(ax)
+    in_kwargs = dict()
+    if plot_type == 'scatter':
+        plot_func = ax.scatter
+        in_kwargs.update(s=10, alpha=0.8)
+    elif plot_type == 'kde':
+        plot_func = lambda px, py, **kwargs: sns.kdeplot(x=px, y=py, ax=ax, **kwargs)
     xtype = model.dwell_params[paramx]
     ytype = model.dwell_params[paramy]
     paramx_func = __param_func[xtype]
     paramy_func = __param_func[ytype]
     rpt = (xtype!="stream", ytype!="stream") if (ytype=="stream") != (xtype=="stream") else (False, False)
     state = model.dwell_state
-    in_kwargs = dict(s=10, alpha=0.8)
     in_kwargs.update(kwargs)
     collections = list()
     for i, skwargs in zip(states, kwarg_arr):
@@ -686,7 +827,7 @@ def dwell_params_scatter(model, paramx, paramy, states=None, state_kwargs=None, 
         for j, (paramx_s, paramy_s) in enumerate(zip(paramx_sort, paramy_sort)):
             new_kwargs = in_kwargs.copy()
             new_kwargs.update(skwargs[j])
-            collection = ax.scatter(paramx_s, paramy_s, **new_kwargs)
+            collection = plot_func(paramx_s, paramy_s, **new_kwargs)
             collections[-1].append(collection)
     ax.set_xlabel(model.param_labels[paramx], **label_kwargs)
     ax.set_ylabel(model.param_labels[paramy], **label_kwargs)
@@ -730,13 +871,14 @@ def dwell_param_transition_kde_plot(model, param, include_edge=True, ax=None,
 
     Returns
     -------
-    None.
+    collection : matplotlib.axes._subplots.AxesSubplot
+        Returned from sns.kdeplot
 
     """
     if param not in model.dwell_params:
         raise ValueError(f"Invalid parameter, param: '{param}', must be one of {[key for key in model.dwell_params.keys()]}")
     if states is not None:
-        assert type(states) == np.ndarray and states.dtype==bool, ValueError("States must be square mask")
+        assert isinstance(states, np.ndarray) and states.dtype==bool, ValueError("States must be square mask")
         if not (states.ndim == 2 and states.shape[0] == states.shape[1] and states.shape[0] == model.model.nstate):
             raise ValueError(f"states must be square mask with shape ({model.model.nstate}, {model.model.nstate}), got {states.shape}")
     if param in ("dwell_state", "dwell_pos"):
@@ -760,9 +902,10 @@ def dwell_param_transition_kde_plot(model, param, include_edge=True, ax=None,
         statemask = statemask[pos<e]
         paramx = paramx[statemask]
         paramy = paramy[statemask]
-    sns.kdeplot(x=paramx, y=paramy, ax=ax, **kwargs)
+    collection = sns.kdeplot(x=paramx, y=paramy, ax=ax, **kwargs)
     ax.set_xlabel(model.param_labels[param], **label_kwargs)
     ax.set_ylabel(model.param_labels[param], **label_kwargs)
+    return collection
 
 
 @_useideal
@@ -958,8 +1101,8 @@ def dwell_E_hist(model, ax=None, add_corrections=False, states=None, state_kwarg
         list of bar containers produced by the ax.hist 
 
     """
-    in_kwargs = kwargs.copy()
-    in_kwargs.update({'alpha':0.5})
+    in_kwargs = {'alpha':0.5}
+    in_kwargs.update(**kwargs)
     E = 'dwell_E_corr' if add_corrections else 'dwell_E'
     collections = dwell_param_hist(model, E, states=states, state_kwargs=state_kwargs, 
                                    label_kwargs=label_kwargs, dwell_pos=dwell_pos, **in_kwargs)
@@ -992,7 +1135,7 @@ def dwell_S_hist(model, ax=None, states=None, state_kwargs=None,add_corrections=
     dwell_pos : int, list, tuple, numpy array or mask_generating callable, optional
         Which dwell position(s) to include.If None, do not filter by burst position.
         The default is None.
-    **kwargs : dict
+    **kwargs : 
         Universal kwargs for ax.hist.
 
     Returns
@@ -1002,8 +1145,8 @@ def dwell_S_hist(model, ax=None, states=None, state_kwargs=None,add_corrections=
         organized as [states][streams]
 
     """
-    in_kwargs = kwargs.copy()
-    in_kwargs.update({'alpha':0.5})
+    in_kwargs = {'alpha':0.5, 'bins':20}
+    in_kwargs.update(**kwargs)
     S = "dwell_S_corr" if add_corrections else "dwell_S"
     collections = dwell_param_hist(model, S, states=states, state_kwargs=state_kwargs, 
                                    label_kwargs=label_kwargs, dwell_pos=dwell_pos, 
@@ -1011,9 +1154,74 @@ def dwell_S_hist(model, ax=None, states=None, state_kwargs=None,add_corrections=
     collections = [collection[0] for collection in collections]
     return collections
 
-def dwell_tau_hist(model, ax=None, streams=[frb.Ph_sel(Dex="Dem"), ], states=None, state_kwargs=None, 
-                  stream_kwargs=None, label_kwargs=None, dwell_pos=None, 
-                  kwarg_arr=None, **kwargs):
+@_useideal
+def dwell_trans_dur_hist(model, to_state=None, from_state=None, include_beg=True, 
+                          to_state_kwargs=None, from_state_kwargs=None, 
+                          kwarg_arr=None, ax=None, **kwargs):
+    to_state = _check_states(model, to_state)
+    from_state = _check_states(model, from_state)
+    if (from_state_kwargs is not None or to_state_kwargs is not None) and kwarg_arr is not None:
+        warnings.warn("Specifying to_state_kwargs or from_state_kwargs at same time as kwarg_arr, will result in dictionary smashing")
+    # build kwargs array, first check kwarg_arr
+    kwarg_mat = [[dict(alpha=0.5, bins=20) for j in to_state] for i in from_state]
+    if kwarg_arr is not None:
+        if not isinstance(kwarg_arr, Iterable):
+            raise ValueError("kwarg_arr is not iterable type")
+        elif len(kwarg_arr) != len(from_state):
+            raise ValueError("kwarg_arr must be same length as from_state, got {len(from_state)}, and {len(kwarg_arr)}")
+        for i, kwi in enumerate(kwarg_arr):
+            if not isinstance(kwi, Iterable):
+                raise ValueError("kwarg_arr[{i}] is not iterable type")
+            elif len(kwi) != len(to_state):
+                raise ValueError("kwarg_arr[{i}] must be same length as to_state, got {len(to_state)}, and {len(kwi)}")
+            for j, kwj in enumerate(kwi):
+                kwarg_mat[i][j] = _update_ret(kwarg_mat[i][j], kwj)
+    # update from_state_kwargs
+    if from_state_kwargs is not None:
+        if not isinstance(from_state_kwargs, Iterable):
+            raise ValueError("")
+        elif len(from_state_kwargs) != len(from_state):
+            raise ValueError("")
+        for i, fsk in enumerate(from_state_kwargs):
+            for j in range(len(to_state)):
+                kwarg_mat[i][j] = _update_ret(kwarg_mat[i][j], fsk)
+    # update from_state_kwargs
+    if to_state_kwargs is not None:
+        if not isinstance(to_state_kwargs, Iterable):
+            raise ValueError("")
+        elif len(to_state_kwargs) != len(to_state):
+            raise ValueError("")
+        for i in range(len(from_state)):
+            for j, tsk in enumerate(to_state_kwargs):
+                kwarg_mat[i][j] = _update_ret(kwarg_mat[i][j], tsk)
+    # plotting
+    ax = _check_ax(ax)
+    collections = [[None for tmpj in to_state] for tmpi in from_state]
+    for f, t in permutations(from_state, to_state):
+        if f == t:
+            continue
+        msk = BurstSort._trans_mask(model, f, t, include_beg=include_beg)
+        collections[i][j] = ax.hist(model.dwell_dur[msk], **kwarg_mat[f][t])
+    return collections
+        
+
+def dwell_dur_hist(model, ax=None, states=None, state_kwargs=None, label_kwargs=None, 
+                   dwell_pos=None, **kwargs):
+    in_kwargs = {'alpha':0.5, 'bins':20}
+    in_kwargs.update(**kwargs)
+    
+    collections = dwell_param_hist(model, "dwell_dur", states=states, 
+                                   state_kwargs=state_kwargs, 
+                                   label_kwargs=label_kwargs, dwell_pos=dwell_pos, 
+                                   **in_kwargs)
+    collections = [collection[0] for collection in collections]
+    return collections
+
+
+
+def dwell_tau_hist(model, ax=None, streams=[frb.Ph_sel(Dex="Dem"), ], states=None, 
+                   state_kwargs=None, stream_kwargs=None, label_kwargs=None, 
+                   dwell_pos=None, kwarg_arr=None, **kwargs):
     """
     Plot histograms of mean nanotimes of each state. Default is to plot only 
     D\ :sub:`ex`\ D\ :sub:`em`\  stream.
@@ -1055,15 +1263,15 @@ def dwell_tau_hist(model, ax=None, streams=[frb.Ph_sel(Dex="Dem"), ], states=Non
         organized as [states][streams]
 
     """
-    in_kwargs = kwargs.copy()
-    in_kwargs.update({'alpha':0.5})
+    in_kwargs = {'alpha':0.5}
+    in_kwargs.update(**kwargs)
     collections = dwell_param_hist(model, "dwell_nano_mean", streams=streams, states=states, 
                                    state_kwargs=state_kwargs, stream_kwargs=stream_kwargs, 
                                    label_kwargs=label_kwargs, dwell_pos=dwell_pos, 
                                    kwarg_arr=kwarg_arr, **in_kwargs)
     return collections
 
-def dwell_ES_scatter(model, ax=None, states=None, state_kwargs=None, add_corrections=False, 
+def dwell_ES_scatter(model, ax=None, plot_type='scatter', states=None, state_kwargs=None, add_corrections=False, 
                      label_kwargs=None, dwell_pos=None, **kwargs):
     """
     Dwell based ES scatter plot
@@ -1074,6 +1282,9 @@ def dwell_ES_scatter(model, ax=None, states=None, state_kwargs=None, add_correct
         Source of data.
     ax : matplotlib.axes._subplots.AxesSubplot, optional
         Axes to draw histogram(s) in. The default is None.
+    plot_type : str, optional
+        'scatter' or 'kde' whether to plot with ax.scatter or sns.kdeplot.
+        The default is 'scatter'
     states : numpy.ndarray, optional
         Which states to plot, if None, all states plotted. 
         The default is None.
@@ -1097,19 +1308,21 @@ def dwell_ES_scatter(model, ax=None, states=None, state_kwargs=None, add_correct
         List of matplotlib PathCollections return by ax.scatter
 
     """
-    in_kwargs = dict(s=10, alpha=0.7)
+    in_kwargs = dict(s=10, alpha=0.7) if plot_type == 'scatter' else dict()
     in_kwargs.update(kwargs)
     E = 'dwell_E_corr' if add_corrections else 'dwell_E'
     S = "dwell_S_corr" if add_corrections else "dwell_S"
     collections = dwell_params_scatter(model, E, S, ax=ax, states=states, state_kwargs=state_kwargs, 
-                                       label_kwargs=label_kwargs, dwell_pos=dwell_pos, **in_kwargs)
+                                       label_kwargs=label_kwargs, dwell_pos=dwell_pos, 
+                                       plot_type=plot_type, **in_kwargs)
     collections = [collection[0] for collection in collections]
     return collections
     
 
-def dwell_E_tau_scatter(model, ax=None, add_corrections=False, streams=[frb.Ph_sel(Dex="Dem"), ], 
-                        states=None, state_kwargs=None, stream_kwargs=None, label_kwargs=None, 
-                        dwell_pos=None, kwarg_arr=None, **kwargs):
+def dwell_E_tau_scatter(model, ax=None, plot_type='scatter', add_corrections=False, 
+                        streams=[frb.Ph_sel(Dex="Dem"), ], states=None, state_kwargs=None, 
+                        stream_kwargs=None, label_kwargs=None, dwell_pos=None, 
+                        kwarg_arr=None, **kwargs):
     """
     E-tau_D scatter plot
 
@@ -1119,6 +1332,9 @@ def dwell_E_tau_scatter(model, ax=None, add_corrections=False, streams=[frb.Ph_s
         Source of data.
     ax : matplotlib.axes._subplots.AxesSubplot, optional
         Axes to draw histogram(s) in. The default is None.
+    plot_type : str, optional
+        'scatter' or 'kde' whether to plot with ax.scatter or sns.kdeplot.
+        The default is 'scatter'
     add_corrections : bool, optional
         Use corrected or raw E values. 
         The default is False.
@@ -1158,7 +1374,7 @@ def dwell_E_tau_scatter(model, ax=None, add_corrections=False, streams=[frb.Ph_s
                                        state_kwargs=state_kwargs, streams=streams, 
                                        stream_kwargs=stream_kwargs, 
                                        label_kwargs=label_kwargs, dwell_pos=dwell_pos, 
-                                       kwarg_arr=kwarg_arr, **kwargs)
+                                       kwarg_arr=kwarg_arr, plot_type=plot_type, **kwargs)
     return collections
 
 
@@ -1206,7 +1422,7 @@ def _stat_disc_plot(model_list, param, highlight_ideal=False, ideal_kwargs=None,
         collection = ax.scatter(ideal_state, ideal_val, **id_kwargs)
         collections.append(collection)
         mask[model_list.ideal] = False
-    collection = ax.scatter(states[mask], vals[mask])
+    collection = ax.scatter(states[mask], vals[mask], **kwargs)
     collections.append(collection)
     ax.set_xlabel("states")
     ax.set_ylabel(model_list.stat_disc_labels[param])
@@ -1215,7 +1431,7 @@ def _stat_disc_plot(model_list, param, highlight_ideal=False, ideal_kwargs=None,
 
 def ICL_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwargs):
     """
-    Plot the ICL of each state
+    Plot the ICL of each state model.
 
     Parameters
     ----------
@@ -1243,7 +1459,7 @@ def ICL_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwa
 
 def BIC_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwargs):
     """
-    Plot the Bayes Information Criterion of each state
+    Plot the Bayes Information Criterion of each state model.
 
     Parameters
     ----------
@@ -1271,7 +1487,7 @@ def BIC_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwa
 
 def BICp_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwargs):
     """
-    Plot the modified Bayes Information Criterion of each state
+    Plot the modified Bayes Information Criterion of each state model.
 
     Parameters
     ----------
@@ -1294,9 +1510,36 @@ def BICp_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kw
         list of collections produced by the scatter plot
 
     """
-    collections = _stat_disc_plot(model_list, 'BICp',highlight_ideal=highlight_ideal, ideal_kwargs=ideal_kwargs, ax=ax,**kwargs)
+    collections = _stat_disc_plot(model_list, 'BIC',highlight_ideal=highlight_ideal, ideal_kwargs=ideal_kwargs, ax=ax,**kwargs)
     return collections
 
+def path_BIC_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwargs):
+    """
+    Plot the Bayes Information Criterion of the most likely path of each state model.
+
+    Parameters
+    ----------
+    model : H2MM_list
+        The set of optimizations to be compared, a H2MM_list object (a divisor scheme).
+    highlight_ideal : bool, optional
+        Whether or not to plot the ideal/selected model separately. 
+        The default is False.
+    ideal_kwargs : dict or None, optional
+        The kwargs to be passed specifically to the ideal model point.
+        The default is None.
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    **kwargs : dict
+        kwargs to be passed to ax.scatter
+
+    Returns
+    -------
+    collections : list[matplotlib.collections.PathCollection]
+        list of collections produced by the scatter plot
+
+    """
+    collections = _stat_disc_plot(model_list, 'path_BIC',highlight_ideal=highlight_ideal, ideal_kwargs=ideal_kwargs, ax=ax,**kwargs)
+    return collections
 
 def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, yscale='linear',
                       normalize=False, **kwargs):
@@ -1549,3 +1792,220 @@ def axline_divs(model_list, horizontal=False, stream_kwargs=None, ax=None, **kwa
     lines = [[axline(dv, **kw) for dv in div] for div, kw in zip(model_list.divisor_scheme, stream_kwargs)]
     return lines
 
+@_useideal
+def ll_param_scatter(err, mparam, ax=None, flex=None, thresh=None, space_kwargs=None, **kwargs):
+    """
+    Generic function for plotting 1D scatter of how loglikelihood varies along a
+    given model parameter
+
+    Parameters
+    ----------
+    err : H2MM_result or Loglik_Error
+        Model or loglik_error object to plot variability of loglikelihood along
+        specified parameter.
+    mparam : tuple[str, int, (int)]
+        tuple specifying which model parameter to vary.
+        For E and S, specify as ('E', state) or ('S', state)
+        For transition rates, specify as ('trans', from_state, to_state)
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    flex : float, optional
+        Allowed variability in target decrease in loglikelihood. 
+        If None use default.
+        The default is None.
+    thresh : float, optional
+        Decrease in loglikelihood of adjusted model to target as characterizing
+        the error. The default is None.
+    **kwargs : dict
+        Keyword arguments passed to ax.scatter.
+
+    Returns
+    -------
+    ret : matplotlib.collections.PathCollection
+        Path collection returned by ax.scatter.
+
+    """
+    ax = _check_ax(ax)
+    if isinstance(err, BurstSort.H2MM_result):
+        err = err.loglik_err
+    if mparam[0] == 'E':
+        attr_rng, attr_ll = 'E_rng', 'E_ll_rng'
+        attr_eval, attr_space = getattr(err, 'E_eval'), getattr(err, 'E_space')
+    elif mparam[0] == 'S':
+        attr_rng, attr_ll = 'S_rng', 'S_ll_rng'
+        attr_eval, attr_space = getattr(err, 'S_eval'), getattr(err, 'S_space')
+    elif mparam[0] in ('t', 'trans'):
+        attr_rng, attr_ll = 't_rate_rng', 't_ll_rng'
+        attr_eval, attr_space = getattr(err, 'trans_eval'), getattr(err, 'trans_space')
+    if space_kwargs is not None:
+        attr_space(mparam[1:], **space_kwargs)
+    if not hasattr(err, attr_rng):
+        if space_kwargs is None:
+            space_kwargs = dict()
+            attr_eval(locs=mparam[1:], flex=flex, thresh=thresh)
+            attr_space(mparam[1:], **space_kwargs)
+    x = getattr(err, attr_rng)[mparam[1:]]
+    y = getattr(err, attr_ll)[mparam[1:]]
+    if x.size == 0:
+        attr_eval(locs=mparam[1:], thresh=thresh, flex=flex)
+        attr_space(mparam[1:])
+        x = getattr(err, attr_rng)[mparam[1:]]
+        y = getattr(err, attr_ll)[mparam[1:]]
+    ret = ax.scatter(x,y, **kwargs)
+    return ret
+
+def ll_E_scatter(err, state, ax=None, rng=None, steps=20, flex=None, thresh=None, **kwargs):
+    """
+    Plot how the loglikelihood decreases when varying the FRET efficiency of a
+    specified state away from the optimal value.
+    
+    .. note::
+        
+        This method is a wrapper around :func:`ll_param_scatter`
+
+
+    Parameters
+    ----------
+    err : H2MM_result or Loglik_Error
+        Model or loglik_error object to plot variability of loglikelihood along
+        specified parameter.
+    state : int
+        State for which to plot the variability of loglikelihood with varied E
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    rng : tuple[int, int], int, float, numpy.ndarray, optional
+        Custom range specified by (low, high) S vals, or factor by which to multiply
+        error range, or array of S values. The default is None.
+    steps : int, optional
+        Number of models to evaluate. The default is 20.
+    flex : float, optional
+        Allowed variability in target decrease in loglikelihood. 
+        If None use default.
+        The default is None.
+    thresh : float, optional
+        Decrease in loglikelihood of adjusted model to target as characterizing
+        the error. The default is None.
+    **kwargs : dict
+        Keyword arguments passed to ax.scatter.
+
+    Raises
+    ------
+    ValueError
+        Invalid input to state.
+
+    Returns
+    -------
+    ret : matplotlib.collections.PathCollection
+        Path collection returned by ax.scatter.
+    
+    """
+    if not isinstance(state, int):
+        raise ValueError("state must be an int")
+    ret = ll_param_scatter(err, ('E', state), ax=ax, flex=flex, thresh=thresh, 
+                           space_kwargs={'rng':rng, 'steps':steps}, **kwargs)
+    return ret
+
+def ll_S_scatter(err, state, ax=None, rng=None, steps=20, flex=None, thresh=None, **kwargs):
+    """
+    Plot how the loglikelihood decreases when varying the stoichiometry of a
+    specified state away from the optimal value.
+    
+    .. note::
+        
+        This method is a wrapper around :func:`ll_param_scatter`
+
+    Parameters
+    ----------
+    err : H2MM_result or Loglik_Error
+        Model or loglik_error object to plot variability of loglikelihood along
+        specified parameter.
+    state : int
+        State for which to plot the variability of loglikelihood with varied E
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    rng : tuple[int, int], int, float, numpy.ndarray, optional
+        Custom range specified by (low, high) S vals, or factor by which to multiply
+        error range, or array of S values. The default is None.
+    steps : int, optional
+        Number of models to evaluate. The default is 20.
+    flex : float, optional
+        Allowed variability in target decrease in loglikelihood. 
+        If None use default.
+        The default is None.
+    thresh : float, optional
+        Decrease in loglikelihood of adjusted model to target as characterizing
+        the error. The default is None.
+    **kwargs : dict
+        Keyword arguments passed to ax.scatter.
+
+    Raises
+    ------
+    ValueError
+        Invalid input to state.
+
+    Returns
+    -------
+    ret : matplotlib.collections.PathCollection
+        Path collection returned by ax.scatter.
+    
+    """
+    if not isinstance(state, int):
+        raise ValueError("state must be an int")
+    ret = ll_param_scatter(err, ('S', state), ax=ax, flex=flex, thresh=thresh, 
+                           space_kwargs={'rng':rng, 'steps':steps}, **kwargs)
+    return ret
+
+def ll_trans_scatter(err, from_state, to_state, ax=None, rng=None, steps=20, flex=None, thresh=None, **kwargs):
+    """
+    Plot how the loglikelihood decreases when varying the transition rate of a
+    specified (from_state to_state) pair away from the optimal value.
+    
+    .. note::
+        
+        This method is a wrapper around :func:`ll_param_scatter`
+
+
+    Parameters
+    ----------
+    err : H2MM_result or Loglik_Error
+        Model or loglik_error object to plot variability of loglikelihood along
+        specified parameter.
+    from_state : int
+        The state the system transitions from.
+    to_state : int
+        The state the system transitions to.
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    rng : tuple[int, int], int, float, numpy.ndarray, optional
+        Custom range specified by (low, high) S vals, or factor by which to multiply
+        error range, or array of S values. The default is None.
+    steps : int, optional
+        Number of models to evaluate. The default is 20.
+    flex : float, optional
+        Allowed variability in target decrease in loglikelihood. 
+        If None use default.
+        The default is None.
+    thresh : float, optional
+        Decrease in loglikelihood of adjusted model to target as characterizing
+        the error. The default is None.
+    **kwargs : dict
+        Keyword arguments passed to ax.scatter.
+
+    Raises
+    ------
+    ValueError
+        Invalid input to either from_state or to_state.
+
+    Returns
+    -------
+    ret : matplotlib.collections.PathCollection
+        Path collection returned by ax.scatter.
+    
+    """
+    if not isinstance(from_state, int):
+        raise ValueError("from_state must be an int")
+    if not isinstance(to_state, int):
+        raise ValueError("to_state must be an int")
+    ret = ll_param_scatter(err, ('trans', from_state, to_state), ax=ax, flex=flex, thresh=thresh, 
+                           space_kwargs={'rng':rng, 'steps':steps}, **kwargs)
+    return ret

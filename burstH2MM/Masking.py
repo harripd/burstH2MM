@@ -14,6 +14,10 @@ Functions for selecting types of bursts and photons
 
 import numpy as np
 
+
+from . import BurstSort
+
+
 def mid_dwell(model):
     """
     Return mask of all middle dwells in model (not whole, beginning or end)
@@ -30,6 +34,7 @@ def mid_dwell(model):
 
     """
     return model.dwell_pos == 0
+
 
 def end_dwell(model):
     """
@@ -48,6 +53,7 @@ def end_dwell(model):
     """
     return model.dwell_pos == 1
 
+
 def begin_dwell(model):
     """
     Return mask of all dwells at the beginning of bursts
@@ -64,6 +70,7 @@ def begin_dwell(model):
 
     """
     return model.dwell_pos == 2
+
 
 def burst_dwell(model):
     """
@@ -82,6 +89,7 @@ def burst_dwell(model):
     """
     return model.dwell_pos == 3
 
+
 def edge_dwell(model):
     """
     Return mask of all dwells at the beginning and end of bursts
@@ -98,6 +106,7 @@ def edge_dwell(model):
 
     """
     return (model.dwell_pos == 2) + (model.dwell_pos == 3)
+
 
 def not_mid_dwell(model):
     """
@@ -116,6 +125,7 @@ def not_mid_dwell(model):
     """
     return model.dwell_pos != 0
 
+
 def burst_init_dwell(model):
     """
     Return mask of all dwells that start at the beginning of a burst
@@ -133,6 +143,7 @@ def burst_init_dwell(model):
     """
     return model.dwell_pos > 1
 
+
 def burst_end_dwell(model):
     """
     Return mask of all dwells that end at the end of bursts (whole-burst and end dwells)
@@ -149,6 +160,7 @@ def burst_end_dwell(model):
 
     """
     return (model.dwell_pos == 1) + (model.dwell_pos == 4)
+
 
 def dwell_size(model, ph_min, ph_max=np.inf, streams=None):
     """
@@ -201,4 +213,33 @@ def dwell_size(model, ph_min, ph_max=np.inf, streams=None):
         raise TypeError(f"strem must be a fretbursts.Ph_sel, or array_like[fretbursts.Ph_sel], got {type(streams)}")
     mask = (ph_counts >= ph_min) * (ph_counts <= ph_max)
     return mask
+
+
+def dwell_trans(model, to_state, include_beg=True):
+    """
+    Geneate a mask of which dwells belong to a given type of transition.
+    This allows selection of dwells of a given state, that transition to another
+    specific state.
+
+    Parameters
+    ----------
+    model : H2MM_model
+        The model for which the mask is generated
+    to_state : int
         
+    
+    include_beg : bool, optional
+        Whether or not to have transitions where the dwell is an initial dwell
+        set to true in the mask. Only used dwell and next state are different.
+        The default is True.
+
+    Returns
+    -------
+    dwell_trans_mask : numpy.ndarray[bool]
+        Mask of dwells meeting the specified transitions.
+
+    """
+    dwell_trans_mask = np.sum([BurstSort._get_dwell_trans_mask(model, (i, to_state), 
+                                                               include_beg=include_beg) 
+                               for i in range(model.nstate) if i !=to_state], axis=0)
+    return dwell_trans_mask

@@ -4,6 +4,7 @@ requires = [
     "wheel",
     "IPython",
     "oldest-supported-numpy",
+    "pandas",
     "matplotlib",
     "seaborn",
     "H2MM_C"

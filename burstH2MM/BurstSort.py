@@ -16,11 +16,16 @@ analyzing H2MM results of burst data provided by FRETBursts
 """
 
 import numpy as np
+import pandas as pd
 import warnings
+from itertools import chain, permutations
+from collections.abc import Iterable
+
 import fretbursts as frb
 import H2MM_C as h2
-from itertools import chain
 
+
+from . import ModelError
 
 def _single_div(data, ph_stream):
     """
@@ -769,9 +774,11 @@ class BurstData:
         The default is None
     Aex_shift : bool, str or None, optional
         The method to shift Aex photons. Options are 'shift', 'rand' and 'even'.
-        - 'shift' merely shifts all Aex photons by the difference between the beginnings of the Donor and Acceptor excitation periods.
-        - 'rand' randomly distributes Aex photons into the adjacent donor excitation period.
-        - 'even' evenly distributes photons from adjacent acceptor excitation periods into the donor excitation period
+        
+            - 'shift' merely shifts all Aex photons by the difference between the beginnings of the Donor and Acceptor excitation periods.
+            - 'rand' randomly distributes Aex photons into the adjacent donor excitation period.
+            - 'even' evenly distributes photons from adjacent acceptor excitation periods into the donor excitation period
+        
         The default is None 
     irf_thresh : list[int] or None, optional
         Nanotime bin for the threshold of the IRF.
@@ -1014,7 +1021,7 @@ def _conv_crit(model_list, attr, thresh):
     if thresh is None:
         conv = np.argmin(discrim) if model_list.num_opt > 1 else 1
     else:
-        conv = np.argwhere(conv < 0.05)[0,0] if  model_list.num_opt > 1 else 1
+        conv = np.argwhere(thresh < 0.05)[0,0] if  model_list.num_opt > 1 else 1
     return conv
 
 def _calc_burst_state_counts(path, trans_locs, nstate):
@@ -1085,6 +1092,13 @@ def find_ideal(model_list, conv_crit, thresh=None, auto_set=False):
         ideal = 0
     return ideal
 
+def _dwell_weighted_avg(data, weights, states):
+    nstate = states.max() + 1
+    avg = np.array([np.average(data[states==s], weigths=weights[states==s]) for s in range(nstate)])
+    std = np.array([np.average((data[states==s] - avg[s])**2, weights=weights[states==s]) for s in range(nstate)])
+    err = std / np.sqrt(np.array([(states==s).sum() for s in range(nstate)]))
+    return avg, std, err
+
 
 # class for a given set of divisors, aggregates different state models
 class H2MM_list:
@@ -1110,7 +1124,7 @@ class H2MM_list:
         Whether or not to clear dynamically calculated arrays
     """
     #: dictionary of statistical discriminators as keys and labels for matplotlib axis as values
-    stat_disc_labels = {'ICL':"ICL", 'BIC':"BIC", 'BICp':"BIC'"}
+    stat_disc_labels = {'ICL':"ICL", 'BIC':"BIC", 'BICp':"BIC'", 'path_BIC':'path BIC'}
     def __init__(self, parent, index, divisor_scheme=None, conserve_memory=False):
         if divisor_scheme is None:
             divisor_scheme = _make_divs(parent.data, parent.ph_streams)
@@ -1176,6 +1190,17 @@ class H2MM_list:
             else:
                 ICL[i] = np.inf
         return ICL
+    
+    @property
+    def path_BIC(self):
+        """The Bayes Information Criterion of the most likely path"""
+        pBIC = np.empty(len(self.opts))
+        for i, m in enumerate(self.opts):
+            if m is not None:
+                pBIC[i] = m.path_bic
+            else:
+                pBIC[i] = np.inf
+        return pBIC
     
     @property
     def ndet(self):
@@ -1482,6 +1507,129 @@ class H2MM_list:
                 opt.trim_data()
 
 
+def _trans_mask(model, b, e):
+    if b != e:
+        mask = (model.dwell_state[:-1]==b) * (model.dwell_state[1:]==e) * (model.dwell_pos[1:] < 2)
+    else:
+        mask = (model.dwell_pos==3) * (model.dwell_state == b)
+    return mask
+
+
+def _get_dwell_trans_mask(model, locs, include_beg=True, include_end=False):
+    """
+    Geneate a mask of which dwells belong to a given type of transition.
+    This allows selection of dwells of a given state, that transition to another
+    specific state.
+
+    Parameters
+    ----------
+    model : H2MM_model
+        The model for which the mask is generated
+    locs : int, 2-tuple
+        Defnition of which transitions to include in the mask. Normally a 2-tuple
+        of ints, specifying the state of the dwell, and the next state.
+    
+    For examining dwells without a subsequent transition, (whole burst, and 
+    optionally dwells at the end of a burst) specify as an int, 1-tuple, or 
+    2-tuple with both elements the same.
+    include_beg : bool, optional
+        Whether or not to have transitions where the dwell is an initial dwell
+        set to true in the mask. Only used dwell and next state are different.
+        The default is True.
+    include_end : bool, optional
+        When locs is int, 1-tuple, or both elements are the same, (ignored otherwise)
+        whether or not to include dwells at the end of bursts or the correct state. 
+        The default is False.
+
+    Returns
+    -------
+    mask : numpy.ndarray[bool]
+        Mask of dwells meeting the specified transitions.
+
+    """
+    if isinstance(locs, int):
+        locs = (locs, )
+    if isinstance(locs, Iterable):
+        if len(locs) > 2:
+            raise ValueError(f"Agrument must be a 1 or 2 tuple, got {len(locs)}-tuple")
+        elif np.any([not isinstance(l, int) for l in locs]):
+            raise ValueError(f"All values in locs must be integers, got {[type(l) for l in locs]}")
+        elif max(locs) >= model.model.nstate:
+            raise ValueError(f"Nonexistent state {max(locs)} specified, max state is {model.model.nstate -1}")
+        elif len(locs) == 2 and locs[0] != locs[1]:
+            mask = (model.dwell_pos==0)+(model.dwell_pos==2) if include_beg else model.dwell_pos==0
+            bmask = model.dwell_state == locs[0]
+            emask = model.dwell_state == locs[1]
+            tmask = np.concatenate([bmask[:-1]*emask[1:], [False]])
+            mask  = mask * tmask
+        else:
+            mask = (model.dwell_pos==3)+(mask.dwell_pos==1) if include_end else model.dwell_pos==3
+            mask *= model.dwell_state == locs[0]
+    else:
+        raise ValueError(f"locs must be tuple of int or int, got type {type(locs)}")
+    return mask
+
+
+def trans_stats(model, ph_min=0):
+    """
+    Generate statistics about transitions and dwells.
+
+    Parameters
+    ----------
+    model : H2MM_model
+        H2MM_model object to calculate *Viterbi* transition statistics.
+        Calculates the number of times specific transitions occur, and mean dwell
+        times for said transitions.
+        
+        .. note::
+            
+            Values on diagonals are modified to report useful statistics, instead
+            of self transition values. For counts the diagonal represents the number
+            of whole-burst dwells (bursts with only one state), and for the mean
+            dwell duration, diagonal values are the mean of all dwells in the state,
+            no matter the following dwell.
+            
+    ph_min : int, optional
+        Minimum number of photons to include a dwell in statistical analysis. The default is 0.
+
+    Returns
+    -------
+    trans_cnts : numpy.ndarray
+        Number of times a specific transition [from state, to state].
+        Values on the diagonal indicate the number of bursts entirely in the
+        given state.
+    trans : numpy.ndarray
+        Mean duration (in milliseconds) of dwells in a given state that transition
+        to each state [dwell state, next state]. Diagonal values are the mean of
+        all dwells in that state.
+
+    """
+    ph_mask = (model.dwell_ph_counts.sum(axis=0) >= ph_min)
+    mask = (model.dwell_pos < 2)[1:] * ph_mask[1:] * ph_mask[:-1]
+    trans_cnts = np.empty((model.nstate, model.nstate), dtype=int)
+    trans = np.empty((model.nstate, model.nstate), dtype=float)
+    for b in range(model.nstate):
+        for e in range(model.nstate):
+            if b == e:
+                trans_cnts[b,e] = (model.dwell_state[(model.dwell_pos==3)*ph_mask] == b).sum()
+                trans[b,e] = np.mean(model.dwell_dur[ph_mask * (model.dwell_state==b)])
+            else:
+                trans_cnts[b,e] = ((model.dwell_state[:-1][mask] == b)*(model.dwell_state[1:][mask] == e)).sum() 
+                trans[b,e] = np.mean(model.dwell_dur[:-1][(model.dwell_state[:-1][mask] == b)*(model.dwell_state[:-1][mask] == e)])
+    return trans_cnts, trans
+
+
+def _style_trans(pd_frame, min_dwell_cnt=10):
+    style_frame = pd.DataFrame('', index=pd_frame.index, columns=['to_state_{s}' for s in range(pd_frame.shape[0])])
+    for f in range(pd_frame.shape[0]):
+        for t in range(pd_frame.shape[0]):
+            if f == t: 
+                style_frame[f'to_state_{t}'][f'state_{f}'] = 'background-color: lightcoral'
+            elif pd_frame[f'to_state_{t}'][f'state_{f}'] < min_dwell_cnt:
+                style_frame[f'to_state_{t}'][f'state_{f}'] = 'color: orange'
+    return style_frame
+
+
 # class to store individual h2mm models and their associated parameters
 class H2MM_result:
     """ 
@@ -1536,6 +1684,13 @@ class H2MM_result:
         self.parent = parent
         #: The optimized H2MM_C.h2mm_model representing the data
         self.model = model
+        pbic, ll_arr = h2.path_loglik(model, parent.index, parent.parent.times, 
+                                      path, BIC=True, total_loglik=False, loglikarray=True)
+        #: BIC of most likely path
+        self.path_bic = pbic
+        #: loglikelihood of path of each burst
+        self.ll_arr = ll_arr
+        self.loglik_err = ModelError.Loglik_Error(self)
         if self.parent.parent.nanos is not None:
             self._conf_thresh = 0.0
     
@@ -1550,6 +1705,11 @@ class H2MM_result:
     def nstate(self):
         """Number of states in model"""
         return self.model.nstate
+    
+    @property
+    def loglik(self):
+        """The logliklihood of the model, no penalties for number of states etc."""
+        return self.model.loglik
             
     @property
     def bic(self):
@@ -1572,29 +1732,61 @@ class H2MM_result:
         return self.model.k
     
     @property
+    def _DexDem_slc(self):
+        if frb.Ph_sel(Dex='Dem') not in self.parent.parent.ph_streams:
+            raise AttributeError("Parent BurstData must include DexDem stream")
+        Ds = np.argwhere([ph_stream == frb.Ph_sel(Dex='Dem') for ph_stream in self.parent.parent.ph_streams])[0,0]
+        return slice(self.parent.div_map[Ds],self.parent.div_map[Ds+1])
+    
+    @property 
+    def _DexAem_slc(self):
+        if frb.Ph_sel(Dex='Aem') not in self.parent.parent.ph_streams:
+            raise AttributeError("Parent BurstData must include DexAem stream")
+        As = np.argwhere([ph_stream == frb.Ph_sel(Dex='Aem') for ph_stream in self.parent.parent.ph_streams])[0,0]
+        return slice(self.parent.div_map[As],self.parent.div_map[As+1])
+    
+    @property 
+    def _AexAem_slc(self):
+        As = np.argwhere([ph_stream == frb.Ph_sel(Aex='Aem') for ph_stream in self.parent.parent.ph_streams])[0,0]
+        if frb.Ph_sel(Aex='Aem') not in self.parent.parent.ph_streams:
+            raise AttributeError("Parent BurstData must include AexAem stream")
+        return slice(self.parent.div_map[As],self.parent.div_map[As+1])
+    
+    @property
     def _DexDem(self):
         """The probability of DexDem from emmision probability matrix (sum of all DexDem streams)"""
-        Ds = np.argwhere([ph_stream == frb.Ph_sel(Dex='Dem') for ph_stream in self.parent.parent.ph_streams])[0,0]
-        Dr = slice(self.parent.div_map[Ds],self.parent.div_map[Ds+1])
-        return self.model.obs[:,Dr].sum(axis=1)
+        return self.model.obs[:,self._DexDem_slc].sum(axis=1)
     
     @property 
     def _DexAem(self):
         """The probability of DexAem from emmision probability matrix (sum of all DexAem streams)"""
-        As = np.argwhere([ph_stream == frb.Ph_sel(Dex='Aem') for ph_stream in self.parent.parent.ph_streams])[0,0]
-        Ar = slice(self.parent.div_map[As],self.parent.div_map[As+1])
-        return self.model.obs[:,Ar].sum(axis=1)
+        return self.model.obs[:,self._DexAem_slc].sum(axis=1)
+    
     @property 
     def _AexAem(self):
         """The probability of AexAem from emmision probability matrix (sum of all AexAem streams)"""
-        As = np.argwhere([ph_stream == frb.Ph_sel(Aex='Aem') for ph_stream in self.parent.parent.ph_streams])[0,0]
-        Ar = slice(self.parent.div_map[As],self.parent.div_map[As+1])
-        return self.model.obs[:,Ar].sum(axis=1)
+        return self.model.obs[:,self._AexAem_slc].sum(axis=1)
     
+    def bootstrap_eval(self, subsets=10):
+        self.bootstrap_err = ModelError.Bootstrap_Error.model_eval(self, subsets=subsets)
+        return tuple(getattr(self.bootstrap_err, attr) for attr in ('E', 'S') if hasattr(self.bootstrap_err, attr))
+            
     @property
     def E(self):
         """The FRET efficiency of each state in the model"""
         return self._DexAem / (self._DexDem + self._DexAem)
+    
+    @property
+    def E_err_bs(self):
+        if not hasattr(self, 'bootstrap_err'):
+            raise UnboundLocalError("This value has not been calculated yet,"
+                                    " use 'bootstrap_eval' method to calculate, "
+                                    "WARNGING this method may take a while")
+        return self.bootstrap_err.E        
+    
+    @property
+    def E_err_ll(self):
+        return self.loglik_err.E
     
     @property 
     def E_corr(self):
@@ -1609,6 +1801,18 @@ class H2MM_result:
         """The stoichiometry of each state in the model"""
         return (self._DexDem + self._DexAem) / (self._DexDem + self._DexAem + self._AexAem)
     
+    @property
+    def S_err_bs(self):
+        if not hasattr(self, 'bootstrap_err'):
+            raise UnboundLocalError("This value has not been calculated yet,"
+                                    " use 'bootstrap_eval' method to calculate, "
+                                    "WARNGING this method may take a while")
+        return self.bootstrap_err.S
+    
+    @property
+    def S_err_ll(self):
+        return self.loglik_err.S
+    
     @property 
     def S_corr(self):
         """The gamma/beta corrected stoichiometry of each state in the model"""
@@ -1620,6 +1824,21 @@ class H2MM_result:
     def trans(self):
         """The Transition rate matrix, rates in s^{-1}"""
         return self.model.trans / self.parent.parent.data.clk_p
+    
+    @property
+    def trans_err_bs(self):
+        if not hasattr(self, 'bootstrap_err'):
+            raise UnboundLocalError("This value has not been calculated yet,"
+                                    " use 'bootstrap_eval' method to calculate, "
+                                    "WARNGING this method may take a while")
+        return self.bootstrap_err.trans
+    
+    @property
+    def trans_err_low_ll(self):
+        return self.loglik_err.trans_low
+    @property
+    def trans_err_high_ll(self):
+        return self.loglik_err.trans_high
     
     @property
     def trans_locs(self):
@@ -1776,7 +1995,50 @@ class H2MM_result:
                                              where= S_tot != 0)
             self._dwell_S_corr = S_corr
         return self._dwell_S_corr
+    
+    @property
+    def dwell_trans_durs(self):
+        """Masks of location of transitions from one state to another.
+        Diagonal values indicate dwells at the end or whole-burst dwells"""
+        if hasattr(self, '_dwell_trans_durs'):
+            self._dwell_trans_durs = np.array([[self.dwell_durs[_trans_mask(self,b,e)] 
+                                                for e in range(self.nstate)] 
+                                               for b in range(self.nstate)], dtype=object)
+        return self._dwell_trans_durs
+    
+    def get_dwell_trans_mask(self, locs, include_beg=True, include_end=False):
+        """
+        Geneate a mask of which dwells belong to a given type of transition.
+        This allows selection of dwells of a given state, that transition to another
+        specific state.
 
+        Parameters
+        ----------
+        locs : int, 2-tuple
+            Defnition of which transitions to include in the mask. Normally a 2-tuple
+            of ints, specifying the state of the dwell, and the next state.
+            
+            For examining dwells without a subsequent transition, (whole burst, and 
+            optionally dwells at the end of a burst) specify as an int, 1-tuple, or 
+            2-tuple with both elements the same.
+        include_beg : bool, optional
+            Whether or not to have transitions where the dwell is an initial dwell
+            set to true in the mask. Only used dwell and next state are different.
+            The default is True.
+        include_end : bool, optional
+            When locs is int, 1-tuple, or both elements are the same, (ignored otherwise)
+            whether or not to include dwells at the end of bursts or the correct state. 
+            The default is False.
+
+        Returns
+        -------
+        dwell_trans_mask : numpy.ndarray[bool]
+            Mask of dwells meeting the specified transitions.
+
+        """
+        dwell_trans_durs = _get_dwell_trans_mask(self, locs, include_beg=include_beg, include_end=include_end)
+        return dwell_trans_durs
+    
     @property
     def conf_thresh(self):
         """Threshhold for considering a photon nantotime in calculating dwell_nano_mean and nanohist"""
@@ -1847,4 +2109,79 @@ class H2MM_result:
 
         """
         return calc_dwell_nanomean(self, ph_streams, irf_thresh)
+    
+    def stats_frame(self, ph_min=5, exclude_beg=False):
+        """
+        Generate a pandas dataframe containting stats on the model.
+
+        Parameters
+        ----------
+        ph_min : int, optional
+            Minimum number of photons for a given dwell to be included in statistics
+            of *Viterbi* based results. The default is 5.
+        exclude_beg : bool, optional
+            Whether or not to exclude beginning dwells from *Viterbi* based statistics. 
+            The default is False.
+
+        Returns
+        -------
+        dataframe : pandas.DataFrame
+            Dataframe of model statistics.
+
+        """
+        has_dE, has_dS = hasattr(self, '_dwell_E'), hasattr(self, '_dwell_S')
+        has_dEc, has_dSc = hasattr(self, '_dwell_E_corr'), hasattr(self, '_dwell_S_corr')
+        index_name = [f'state_{s}' for s in range(self.model.nstate)]
+        rpr_dict = {'E_raw':self.E, 'E_corr':self.E_corr}
+        E_v, E_v_s, E_v_e = _dwell_weighted_avg(self.dwell_E, self.dwell_ph_counts.sum(axis=1), self.dwell_state, ph_min)
+        rpr_dict.update(E_vit_raw=E_v, E_vit_raw_err=E_v_e)
+        if not has_dE:
+            delattr(self, '_dwell_E')
+        E_v_c, E_v_s_c, E_v_e_c = _dwell_weighted_avg(self.dwell_E_corr, self.dwell_ph_counts.sum(axis=1), self.dwell_state, ph_min)
+        rpr_dict.update(E_vit_corr=E_v_c, E_vit_corr_err=E_v_e_c)
+        if not has_dEc:
+            delattr(self, '_dwell_E_corr')
+        if frb.Ph_sel(Aex='Aem') in self.parent.parent.ph_streams:
+            rpr_dict.update(S_raw=self.S, S_corr=self.S_corr)
+            S_v, S_v_s, S_v_e = _dwell_weighted_avg(self.dwell_S, self.dwell_ph_counts.sum(axis=1), self.dwell_state, ph_min)
+            rpr_dict.update(S_vit_raw=S_v, S_vit_raw_err=S_v_e)
+            if not has_dS:
+                delattr(self, '_dwell_S')
+            S_v_c, S_v_s_c, S_v_e_c = _dwell_weighted_avg(self.dwell_S_corr, self.dwell_ph_counts.sum(axis=1), self.dwell_state, ph_min)
+            if not has_dSc:
+                delattr(self, '_dwell_S_corr')
+            rpr_dict.update(S_vit_corr=S_v, S_vit_corr_err=S_v_e_c)
+        for s in range(self.model.nstate):
+            rpr_dict[f'to_state_{s}'] = self.trans[:,s]
+        trans_cnts, trans_vit = trans_stats(self, ph_min=ph_min)
+        rpr_dict.update(**{f'to_state_{s}_dwell_cnts':trs for s, trs in enumerate(trans_cnts.T)})
+        rpr_dict.update(**{f'to_state_{s}_dwell_dur':trs for s, trs in enumerate(trans_vit.T)})
+        if hasattr(self, 'boostrap_eval'):
+            rpr_dict.update(E_err=self.E_err_bs, S_err=self.S_err_bs, trans_err=self.trans_err_bs)
+        dataframe = pd.DataFrame(rpr_dict, index=index_name)
+        return dataframe 
+        
+    def pd_disp(self, ph_min=5, min_dwell_cnt=10):
+        """
+        Redurn a pandas.io.formats.style.Styler frame, showing basic statistics
+        of H2MM_model object, with conditional highlighting of transition rates
+        based on *Viterbi* based statstics.
+
+        Parameters
+        ----------
+        ph_min : int, optional
+            DESCRIPTION. The default is 5.
+        min_dwell_cnt : int, optional
+            DESCRIPTION. The default is 10.
+
+        Returns
+        -------
+        rpr_style : pandas.io.formats.style.Styler
+            Display of model stats with color coded numbers.
+
+        """
+        rpr_frame = self.states_frame(ph_min=ph_min)
+        rpr_style = rpr_frame.style.applymap(_style_trans,min_dwell_cnt=min_dwell_cnt)
+        return rpr_style
+
     
