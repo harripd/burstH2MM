@@ -502,7 +502,7 @@ def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,
     if state_kwargs is None:
         state_kwargs = [[kwargs for j in range(model.nstate)] for i in range(model.nstate)]
     if isinstance(positions, (float, int)):
-        positions = np.ndarray([[positions for j in range(model.nstate)] for i in range(model.nstate)])
+        positions = np.array([[positions for j in range(model.nstate)] for i in range(model.nstate)])
     if not isinstance(to_arrow, str):
         raise ValueError("to_arrow must be valid ax.annotate arrowstyle format string")
     if not isinstance(from_arrow, str):
@@ -553,7 +553,7 @@ def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,
             anno[1] = ax.annotate(tstr, orig, xytext=text, rotation=angle, **st_kw)
         except Exception as e:
             raise ValueError("One or more invalid inputs to ax.annotate") from e
-            annos.append(anno)
+        annos.append(anno)
     return annos
 
 
