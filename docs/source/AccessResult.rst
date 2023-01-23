@@ -24,7 +24,7 @@ It is the user who is responsible for comparing optimized models with different 
         import numpy as np
         from matplotlib import pyplot as plt
         import fretbursts as frb
-        import burstH2MM as hmm
+        import burstH2MM as bhm
         sns = frb.init_notebook()
         # path to your file
         filename = 'your_file.hdf5'
@@ -40,7 +40,7 @@ It is the user who is responsible for comparing optimized models with different 
         # parameters to the particulars of your experiment
         frbdata_sel = frbdata.select_bursts(frb.select_bursts.size, th1=50)
         # now make the BurstData object
-        bdata = hmm.BurstData(frbdata_sel)
+        bdata = bhm.BurstData(frbdata_sel)
         bdata.models.calc_models()
 
 |calc_models| is designed to streamline this process, which optimizes models until the ideal model is found (it actually calculates one more than necessary because it must see that there is at least one model with too many models).
@@ -104,7 +104,7 @@ However, since these values are generally only useful in relation to other model
 burstH2MM has an easy way to compare these::
 
     # give ICL_plot a H2MM_list object
-    hmm.ICL_plot(bdata.models)
+    bhm.ICL_plot(bdata.models)
 
 .. image:: images/iclplot.png
 
@@ -278,7 +278,7 @@ burstH2MM also provides a set of masking functions in :mod:`burstH2MM.Masking`.
 They are named descriptively, and simply take a |H2MM_list| object as input.
 So we can get the mid dwell mask like this::
 
-    mid_dwell_mask = hmm.mid_dwell(bdata.models[2])
+    mid_dwell_mask = bhm.mid_dwell(bdata.models[2])
 
 These functions can be used to filter which dwells are shown in various plotting functions, which is their primary use in burstH2MM. See :ref:`dwellposplot` for a demonstration of thier use in plotting.
 

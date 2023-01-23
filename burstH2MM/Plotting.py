@@ -22,6 +22,7 @@ import functools
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
 import seaborn as sns
 
 import fretbursts as frb
@@ -106,8 +107,14 @@ def _check_states(model, states):
     """
     if states is None:
         states = np.arange(model.model.nstate)
-    elif isinstance(states, (list, int, tuple)):
+    elif not isinstance(states, np.ndarray) and isinstance(states, Iterable):
+        states = np.array(tuple(s for i, s in enumerate(states) if i <= model.nstate))
+    elif isinstance(states, int):
         states = np.atleast_1d(states)
+    elif not isinstance(states, np.ndarray):
+        raise TypeError(f"Incompatible type for states, must be finite iterable or int, but got type: {type(states)}")
+    if states.dtype == bool:
+        states = np.argwhere(states).reshape(-1)
     if not np.all(states < model.model.nstate):
         ValueError("Cannot plot state {np.max(states)}, but model only has {model.model.nstate} states")
     return states
@@ -304,7 +311,7 @@ __param_func = {"bar":_single_sort, "ratio":_single_sort, "stream":_stream_sort}
 
 @_useideal
 def burst_ES_scatter(model, add_corrections=False, flatten_dynamics=False, 
-                     type_kwargs=None, ax=None, **kwargs):
+                     type_kwargs=None, label_kwargs=None, ax=None, **kwargs):
     """
     Plot E-S scatter plot of bursts, colored based on states present in dwell.
 
@@ -335,6 +342,8 @@ def burst_ES_scatter(model, add_corrections=False, flatten_dynamics=False,
                 Thus, the order will mix single and multiple states. Be careful your order.
             
         The default is None.
+    label_kwargs : dict, optional
+        Dictionary of keyword arguments to pass to ax.label
     ax : matplotlib.axes._subplots.AxesSubplot, optional
         Axes to draw scatterplot in. The default is None.
     **kwargs : dict
@@ -352,6 +361,10 @@ def burst_ES_scatter(model, add_corrections=False, flatten_dynamics=False,
 
     """
     ax = _check_ax(ax)
+    if label_kwargs is None:
+        label_kwargs = dict()
+    elif not isinstance(label_kwargs, dict):
+        raise ValueError("label_kwargs must be dict of keys for ax.label")
     if add_corrections:
         E = np.concatenate(model.parent.parent.data.E)
         S = np.concatenate(model.parent.parent.data.S)
@@ -393,12 +406,12 @@ def burst_ES_scatter(model, add_corrections=False, flatten_dynamics=False,
         in_kwargs.update(skwargs)
         collection = ax.scatter(E_sub, S_sub, **in_kwargs)
         collections.append(collection)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    ax.set_xlabel(xlabel, **label_kwargs)
+    ax.set_ylabel(ylabel, **label_kwargs)
     return collections
 
 @_useideal
-def scatter_ES(model, ax=None, add_corrections=False, state_kwargs=None, **kwargs):
+def scatter_ES(model, ax=None, add_corrections=False, states=None, **kwargs):
     """
     Plot the position of all states in E and S
         
@@ -415,6 +428,10 @@ def scatter_ES(model, ax=None, add_corrections=False, state_kwargs=None, **kwarg
         Axes to draw scatterplot in. The default is None.
     add_corrections : bool, optional
         Use the corrected (True) or raw (False) E/S values. The default is False.
+    states : array-like, optional
+        A mask for which states to use. May be a 1-D integer array of states, or
+        boolean mask of which states to plot, in the latter case, must be of the
+        same size as the number of states in the model. The default is None
     **kwargs : keyword arguments
         Keyword arguments passed to ax.scatter to control the plotting
 
@@ -425,9 +442,11 @@ def scatter_ES(model, ax=None, add_corrections=False, state_kwargs=None, **kwarg
 
     """
     ax = _check_ax(ax)
+    if states is None:
+        states = np.arange(model.nstate)
     E_name, S_name = ("E_corr", "S_corr") if add_corrections else ("E", "S")
     E, S = getattr(model, E_name), getattr(model, S_name)
-    collection = ax.scatter(E, S, **kwargs)
+    collection = ax.scatter(E[states], S[states], **kwargs)
     return collection
     
 
@@ -474,7 +493,7 @@ def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,
         The default is '-'.
     to_arrow : str, optional
         Format string for arrow pointing to to_state (value passed to 'arrowstyle'). 
-        The default is '-|>'.
+        The default is '-\|>'.
     state_kwargs : tuple[tuple[dict]], optional
         Transition specific keyword arguments to be passed to ax.annotate(). 
         The default is None.
@@ -497,16 +516,12 @@ def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,
         states = tuple((i, j) for i, j in permutations(range(model.nstate), 2) if model.trans[i,j] >= min_rate)
     else:
         for st in states:
-            if len(st) != 2 and np.any([not isinstance(s,int) for s in st]):
-                raise ValueError("States must be tuple of (from_state, to_state)")
+            if len(st) != 2 or np.any([not isinstance(s,int) for s in st]):
+                raise ValueError("States must be tuple of (from_state, to_state) tuples")
     if state_kwargs is None:
         state_kwargs = [[kwargs for j in range(model.nstate)] for i in range(model.nstate)]
-    if isinstance(positions, (float, int)):
-        positions = np.array([[positions for j in range(model.nstate)] for i in range(model.nstate)])
-    if not isinstance(to_arrow, str):
-        raise ValueError("to_arrow must be valid ax.annotate arrowstyle format string")
-    if not isinstance(from_arrow, str):
-        raise ValueError("from_arrow must be valide ax.annotate arrowstyle format string")
+    if isinstance(positions,  (float, int)):
+        positions = positions * np.ones((model.nstate, model.nstate))
     base_kwargs = dict(arrowprops={'color':'k'}, xycoords='data', textcoords='data', 
                        horizontalalignment='center', verticalalignment='center',
                        rotation_mode='anchor', transform_rotates_text=True)
@@ -547,19 +562,29 @@ def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,
         try:
             anno[0] = ax.annotate(tstr, dest, xytext=text, rotation=angle, **st_kw)
         except Exception as e:
-            raise ValueError("One or more invalid inputs to ax.annotate") from e
+            raise e
         st_kw['arrowprops']['arrowstyle'] = from_arrow
         try:
             anno[1] = ax.annotate(tstr, orig, xytext=text, rotation=angle, **st_kw)
         except Exception as e:
-            raise ValueError("One or more invalid inputs to ax.annotate") from e
+            raise e
         annos.append(anno)
     return annos
 
 
+
+def _check_line_kwargs(model, states, state_kwargs):
+    states = _check_states(model, states)
+    if state_kwargs is None:
+        state_kwargs = tuple(dict() for _ in states)
+    if len(state_kwargs) != states.size:
+        raise ValueError("state_kwargs must be same size as states, got {len(state_kwargs)} and {states.size}")
+    return states, state_kwargs
+
+
 @_useideal
-def axline_E(model, ax=None, add_corrections=False, horizontal=False, state_kwargs=None,
-            **kwargs):
+def axline_E(model, ax=None, add_corrections=False, horizontal=False, states=None, 
+             state_kwargs=None, **kwargs):
     """
     Add bars to plot indicating the FRET efficiency of states
     
@@ -579,6 +604,9 @@ def axline_E(model, ax=None, add_corrections=False, horizontal=False, state_kwar
     horizontal : bool, optional
         Whether to plot the bars horizontally (True) or vertically (False)
         The default is False.
+    states : array-like, optional
+        Which states to plot, identified as array of states, boolean mask or int.
+        The default is None
     state_kwargs : list[dict], optional
         Keyword arguments per state passed to ax.axvline. The default is None.
     **kwargs : dict
@@ -591,18 +619,16 @@ def axline_E(model, ax=None, add_corrections=False, horizontal=False, state_kwar
 
     """
     ax = _check_ax(ax)
+    states, state_kwargs = _check_line_kwargs(model, states, state_kwargs)
     axline = ax.axhline if horizontal else ax.axvline
     E  = model.E_corr if add_corrections else model.E
-    if state_kwargs is None:
-        state_kwargs = repeat({})
-    elif len(state_kwargs) != E.size:
-        raise ValueError(f"state_kwargs must have the same number of elements as input models has staes, got {len(state_kwargs)} and {E.size}")
+    E = E[states]
     lines = [axline(e, **kw) for e, kw in zip(E, state_kwargs)]
     return lines
 
 @_useideal
-def axline_S(model, ax=None, add_corrections=False, horizontal=False, state_kwargs=None, 
-            **kwargs):
+def axline_S(model, ax=None, add_corrections=False, horizontal=False, states=None, 
+             state_kwargs=None, **kwargs):
     """
     Add bars to plot indicating the Stoichiometry of states
     
@@ -622,6 +648,9 @@ def axline_S(model, ax=None, add_corrections=False, horizontal=False, state_kwar
     horizontal : bool, optional
         Whether to plot the bars horizontally (True) or vertically (False)
         The default is False.
+    states : array-like, optional
+        Which states to plot, identified as array of states, boolean mask or int.
+        The default is None
     state_kwargs : list[dict], optional
         Keyword arguments per state passed to ax.axvline. The default is None.
     **kwargs : dict
@@ -634,12 +663,9 @@ def axline_S(model, ax=None, add_corrections=False, horizontal=False, state_kwar
 
     """
     ax = _check_ax(ax)
+    states, state_kwargs = _check_line_kwargs(model, states, state_kwargs)
     axline = ax.axhline if horizontal else ax.axvline
     S  = model.S_corr if add_corrections else model.S
-    if state_kwargs is None:
-        state_kwargs = repeat({})
-    elif len(state_kwargs) != S.size:
-        raise ValueError(f"state_kwargs must have the same number of elements as input models has staes, got {len(state_kwargs)} and {S.size}")
     lines = [axline(s, **kw) for s, kw in zip(S, state_kwargs)]
     return lines
 
@@ -705,7 +731,7 @@ def dwell_param_hist(model, param, streams=None, dwell_pos=None, states=None,
         raise ValueError(f"Invalid parameter, param: '{param}', must be one of {[key for key in model.dwell_params.keys()]}")
     states, streams, kwarg_arr = _process_kwargs(model, states, streams, state_kwargs, stream_kwargs, kwarg_arr)
     if label_kwargs is None:
-        label_kwargs = {}
+        label_kwargs = dict()
     elif not isinstance(label_kwargs, dict):
         raise ValueError(f"label_kwargs must be dictionary of keword arguments, got {type(label_kwargs)}")
     ax = _check_ax(ax)
@@ -1792,6 +1818,20 @@ def axline_divs(model_list, horizontal=False, stream_kwargs=None, ax=None, **kwa
     lines = [[axline(dv, **kw) for dv in div] for div, kw in zip(model_list.divisor_scheme, stream_kwargs)]
     return lines
 
+
+__ll_scatter_params = {'E':('E_rng', 'E_ll_rng', '_E',
+                            lambda err: getattr(err, 'E_eval'), 
+                            lambda err: getattr(err, 'E_space')),
+                       'S':('S_rng', 'S_ll_rng', '_S',
+                            lambda err: getattr(err, 'S_eval'), 
+                            lambda err: getattr(err, 'S_space')),
+                       'trans':('t_rate_rng', 't_ll_rng', '_trans',
+                                lambda err: getattr(err, 'trans_eval'),
+                                lambda err: getattr(err, 'trans_space')),
+                       't':('t_rate_rng', 't_ll_rng', '_trans',
+                            lambda err: getattr(err, 'trans_eval'),
+                            lambda err: getattr(err, 'trans_space'))}
+
 @_useideal
 def ll_param_scatter(err, mparam, ax=None, flex=None, thresh=None, space_kwargs=None, **kwargs):
     """
@@ -1828,26 +1868,18 @@ def ll_param_scatter(err, mparam, ax=None, flex=None, thresh=None, space_kwargs=
     ax = _check_ax(ax)
     if isinstance(err, BurstSort.H2MM_result):
         err = err.loglik_err
-    if mparam[0] == 'E':
-        attr_rng, attr_ll = 'E_rng', 'E_ll_rng'
-        attr_eval, attr_space = getattr(err, 'E_eval'), getattr(err, 'E_space')
-    elif mparam[0] == 'S':
-        attr_rng, attr_ll = 'S_rng', 'S_ll_rng'
-        attr_eval, attr_space = getattr(err, 'S_eval'), getattr(err, 'S_space')
-    elif mparam[0] in ('t', 'trans'):
-        attr_rng, attr_ll = 't_rate_rng', 't_ll_rng'
-        attr_eval, attr_space = getattr(err, 'trans_eval'), getattr(err, 'trans_space')
+    if mparam[0] not in __ll_scatter_params:
+        raise ValueError(f"First value of mparam must be 'E', 'S', 't', or 'trans', got {mparam[0]}")
+    attr_rng, attr_ll, attr_err, attr_eval, attr_space = __ll_scatter_params[mparam[0]]
+    attr_eval, attr_space = attr_eval(err), attr_space(err)
     if space_kwargs is not None:
+        if np.any(getattr(err, attr_err).mask[mparam[1:]]) and (not isinstance(space_kwargs['rng'], Iterable) or len(space_kwargs) <= 2):
+            attr_eval(locs=(mparam[1:], ), thresh=thresh, flex=flex)
         attr_space(mparam[1:], **space_kwargs)
-    if not hasattr(err, attr_rng):
-        if space_kwargs is None:
-            space_kwargs = dict()
-            attr_eval(locs=mparam[1:], flex=flex, thresh=thresh)
-            attr_space(mparam[1:], **space_kwargs)
     x = getattr(err, attr_rng)[mparam[1:]]
     y = getattr(err, attr_ll)[mparam[1:]]
     if x.size == 0:
-        attr_eval(locs=mparam[1:], thresh=thresh, flex=flex)
+        attr_eval(locs=(mparam[1:], ), thresh=thresh, flex=flex)
         attr_space(mparam[1:])
         x = getattr(err, attr_rng)[mparam[1:]]
         y = getattr(err, attr_ll)[mparam[1:]]
@@ -2009,3 +2041,45 @@ def ll_trans_scatter(err, from_state, to_state, ax=None, rng=None, steps=20, fle
     ret = ll_param_scatter(err, ('trans', from_state, to_state), ax=ax, flex=flex, thresh=thresh, 
                            space_kwargs={'rng':rng, 'steps':steps}, **kwargs)
     return ret
+
+
+@_useideal
+def _plot_burst_path(model, burst, param='E', ax=None, color=None, linewidth=None):
+    """
+    Not ready yet
+
+    Parameters
+    ----------
+    model : TYPE
+        DESCRIPTION.
+    burst : TYPE
+        DESCRIPTION.
+    param : TYPE, optional
+        DESCRIPTION. The default is 'E'.
+    ax : TYPE, optional
+        DESCRIPTION. The default is None.
+    color : TYPE, optional
+        DESCRIPTION. The default is None.
+    linewidth : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    lc : TYPE
+        DESCRIPTION.
+
+    """
+    ax = _check_ax(ax)
+    times, path = model.parent.parent.times[burst], model.path[burst]
+    times = (times - times[0])*model.parent.parent.data.clk_p * 1e3 # set 0 to beginning of burst
+    path = getattr(model, param)[path]
+    tloc = model.trans_locs[burst]
+    time_beg, path_beg = times[tloc[:-1]], path[tloc[:-1]] # isolate beginning transition paths
+    time_end, path_end = times[tloc[1:]-1], path[tloc[1:]-3] # isolate ending transition points
+    time_p = np.array([time_beg, time_end]).T.reshape(-1) # join begin and end points, and reshape to alternate
+    path_p = np.array([path_beg, path_end]).T.reshape(-1)
+    points = np.array([time_p, path_p]).T.reshape(1,-1,2) # joint time and path and reshape to alternate
+    lc = LineCollection(points, color=color, linewidth=linewidth)
+    ax.add_artist(lc)
+    return lc
+    

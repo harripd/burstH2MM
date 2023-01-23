@@ -7,6 +7,6 @@ requires = [
     "pandas",
     "matplotlib",
     "seaborn",
-    "H2MM_C"
+    "H2MM_C >= 1.0.2"
 ]
 build-backend = "setuptools.build_meta"

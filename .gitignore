@@ -3,3 +3,5 @@ __pycache__
 docs/build
 burstH2MM/__pycache__
 .ipynb_checkpoints
+docs/source/.ipynb_checkpoints
+*.hdf5

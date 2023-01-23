@@ -116,6 +116,7 @@ Divisors
 --------
 
 .. note::
+  
     This section is closely related with the how to section :ref:`Customizing Divisors <divlochowto>`.
     It will be useful to read them together.
 

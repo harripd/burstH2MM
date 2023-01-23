@@ -22,63 +22,57 @@ import fretbursts as frb
 import H2MM_C as h2
 
 
-### Unfinished: make special classes to dynamically produce just the value of 
-### array property expected from a @property decorated instance
-# class _trans_error:
-#     def __init__(self, parent):
-#         self.parent = parent
-#         self._trans = np.inf * np.ones((self.parent.nstate, self.parent.nstate))
-#         self._trans[np.eye(self.parent.nstate) == 1] = 0.0
-    
-#     def __getitem__(self, loc):
-#         if isinstance(loc, (list, tuple)):
-#             pass
-
-# class _E_error:
-#     def __init__(self, parent):
-#         self.parent = parent
-
-# class _S_error:
-#     def __init__(self, parent):
-#         self.parent = parent
-### End Unfinished section
-
+def _getindexes(shape, *args):
+    index = np.indices(shape)
+    idx = index[(slice(None),)+args]
+    idx = idx.swapaxes(0,-1)
+    idx = idx.reshape(-1,index.shape[0])
+    return idx
 
 class Bootstrap_Error:
     """
     Internal class for storing bootstrap error calculations.
     
-    This class is usually created when the :meth:`BurstSort.H2MM_result.bootstrap_eval'
-    method is called, and stored under :attr:`BurstSort.H2MM_result.bootstrap_err`
+    This class is usually created when the :meth:`burstH2MM.BurstSort.H2MM_result.bootstrap_eval'
+    method is called, and stored under :attr:`burstH2MM.BurstSort.H2MM_result.bootstrap_err`
     
-    :class:`BurstSort.H2MM_result` has several propery aliases for the different
+    :class:`burstH2MM.BurstSort.H2MM_result` has several propery aliases for the different
     error values stored by this class.
+    
+    .. note::
+        
+        The standard init method is rarely used, rather, this is usually instantiated
+        with :meth:`Bootstrap_Error.model_eval` instead.
+        
     
     Parameters
     ----------
     parent : H2MM_model
-        Description
+        H2MM_model object for which the error was generated
     models : list[H2MM_C.h2mm_model]
-        Description
+        The H2MM_C.h2mm_model objects of each subset
     prior : numpy.ndarray
-        
+        Standard deviation of each element in the initial probability matrix
     trans : numpy.ndarray
-        Description
+        Standard deviation of each element in the transition probability matrix
     obs : numpy.ndarray
-        Description
+        Standard deviation of each element in the emmision probability matrix
     E : numpy.ndarray
-        Description
+        Standard deviation in FRET efficiency per state
     S : numpy.ndarray
-    
-    The standard init method is rarely used, rather, this is usually instantiated
-    with :meth:`Bootstrap_Error.model_eval` instead.
+        Variance in stoichiometry per state
     
     """
     def __init__(self, parent, models, prior, trans, obs, *ES):
+        #: parent :class:`burstH2MM.BurstSort.H2MM_result` object
         self.parent = parent
+        #: list of optimized models of subsets
         self.models = models
+        #: Standard deviation of model prior matricies
         self.prior = prior
+        # Standard deviation of model transition probability matrices
         self.trans = trans
+        #: Standard deviation of the emission probability matrix
         self.obs = obs
         for attr, arg in zip(['E', 'S'], ES):
             setattr(self, attr, arg)
@@ -151,10 +145,10 @@ def _bootstrap_eval(model, subsets=10, **kwargs):
     trans = np.std([m.trans for m in mod_arr], axis=0) / model.parent.parent.data.clk_p
     obs = np.std([m.obs for m in mod_arr], axis=0)
     ES = []
-    if frb.Ph_sel(Dex='Dem') in model.parent.parent.ph_streams and frb.Ph_sel(Dex='Aem') in model.parent.parent.ph_streams:
+    if model._hasE:
         E = np.std([m.obs[:,model._DexAem_slc] / (m.obs[:,model._DexAem_slc] + m.obs[:,model._DexDem_slc]) for m in mod_arr], axis=0)
         ES.append(E)
-        if frb.Ph_sel(Aex='Aem') in model.parent.parent.ph_streams:
+        if model._hasS:
             Dex = np.array([m.obs[:,model._DexDem_slc] + m.obs[:,model._DexAem_slc] for m in mod_arr])
             DAex = Dex + np.array([m.obs[:,model._AexAem_slc] for m in mod_arr])
             S = np.std(Dex / DAex, axis=0)
@@ -343,13 +337,13 @@ def err_trans_search(model, loc, flex=5e-2, factor=1e-1, max_iter=100, thresh=0.
     # pull out variables to make code less verbose
     prior, trans, obs = model.model.prior, model.model.trans, model.model.obs
     index, times = model.parent.index, model.parent.parent.times
-    it = 0
+    it, mit = 0, 0
     # set minimuma nd maximum values to accept as "converged"
     targl, targh = model.loglik - thresh - flex, model.loglik - thresh + flex
     # pre-allocate arrays, instead of using list
     rate_array, ll_array = np.empty(10), np.empty(10)
     sz = ll_array.size
-    ll_lh, ll_rt = np.empty(2), np.empty(2)
+    ll_lh, ll_rt = np.zeros(2), np.zeros(2)
     # iterate first low values, then high values
     for i, mult in enumerate((downmult, upmult)):
         low, high, cont = 0.0, np.inf, True
@@ -364,8 +358,15 @@ def err_trans_search(model, loc, flex=5e-2, factor=1e-1, max_iter=100, thresh=0.
                 rate_array[it] = rate
                 ll_array[it] = ll
                 it += 1
+                mit = 0
             else:
+                mit += 1
+                if mit > 10:
+                    break
                 high = factor
+                factor = factor / 2
+                continue
+                
             # cases of bellow/above target range
             if ll < targl:
                 high = factor
@@ -376,9 +377,10 @@ def err_trans_search(model, loc, flex=5e-2, factor=1e-1, max_iter=100, thresh=0.
                 ll_rt[i] = rate
                 cont = False
             factor = (high+low)/2 if high != np.inf else factor * 2
+            # final cleanup- break if 
             if it >= max_iter:
                 cont = False
-            elif it >= sz:
+            elif it >= sz - 1:
                 ll_array = np.concatenate([ll_array, np.empty(10)])
                 rate_array = np.concatenate([rate_array, np.empty(10)])
                 sz = ll_array.size
@@ -422,7 +424,7 @@ def trans_space(err, state, rng=None, steps=20):
 
     """
     s0, s1 = state
-    if not hasattr(err, '_trans') and not isinstance(rng, (float, int, type(None))):
+    if np.any(getattr(err, '_trans').mask[state]) and isinstance(rng, (float, int, type(None))):
         raise ValueError("trans error not calculated, cannot auto-generate range")
     elif rng is None:
         factor = 0.5
@@ -438,7 +440,7 @@ def trans_space(err, state, rng=None, steps=20):
     if isinstance(rng, (int, float, type(None))) or len(rng) == 2:
         rng_arr = np.logspace(Tlow, Thigh, steps, endpoint=True)
     prior, mtrans, obs = err.model.prior, err.model.trans, err.model.obs
-    trans = [_trans_adjust(mtrans, (t, ), (state, )) for t in rng_arr]
+    trans = (_trans_adjust(mtrans, (t, ), (state, )) for t in rng_arr)
     models = [h2.h2mm_model(prior, t, obs) for t in trans]
     models = h2.H2MM_arr(models, err.parent.parent.index, err.parent.parent.parent.times)
     ll = np.array([m.loglik for m in models])
@@ -648,9 +650,9 @@ def E_space(err, state, rng=None, steps=20):
     """
     if isinstance(state, Iterable) and len(state) == 1:
         state = state[0]
-    has_E = hasattr(err, '_E')
+    no_E = np.any(getattr(err, '_E').mask[state])
     need_E = isinstance(rng, (float, int, type(None)))
-    if not has_E and need_E:
+    if no_E and need_E:
         raise ValueError("E error not calculated, cannot auto-generate range")
     if rng is None:
         factor = 2
@@ -669,11 +671,25 @@ def E_space(err, state, rng=None, steps=20):
         rng_arr = rng
     if isinstance(rng, (int, float, type(None))) or len(rng) == 2:
         rng_arr = np.linspace(Elow, Ehigh, steps, endpoint=True)
+    # check for values that already exist
+    mask = np.ones(rng_arr.shape, dtype=bool)
+    ll_arr = np.empty(rng_arr.shape)
+    if hasattr(err, 'E_rng'):
+        _, keep, drop = np.intersect1d(err.E_rng[state], rng_arr, return_indices=True)
+        mask[drop] = False
+        fill_arr = err.E_ll_rng[state][keep]
+        rng_arr_m = rng_arr[mask]
+    else:
+        rng_arr_m = rng_arr
+        fill_arr = np.zeros(0)
+    # perform calculation
     prior, trans = err.model.prior, err.model.trans
-    obs = [_E_adjust(err.parent, (E, ), (state, )) for E in rng_arr]
+    obs = (_E_adjust(err.parent, (E, ), (state, )) for E in rng_arr_m)
     models = [h2.h2mm_model(prior, trans, ob) for ob in obs]
     models = h2.H2MM_arr(models, err.parent.parent.index, err.parent.parent.parent.times)
-    ll_arr = np.array([mod.loglik for mod in models])
+    # infill already calculated numbers
+    ll_arr[mask] = np.array([mod.loglik for mod in models])
+    ll_arr[~mask] = fill_arr
     return rng_arr, ll_arr
 
 
@@ -803,9 +819,9 @@ def S_space(err, state, rng=None, steps=20):
     """
     if isinstance(state, Iterable) and len(state) == 1:
         state = state[0]
-    has_S = hasattr(err, '_S')
+    no_S = np.any(getattr(err, '_S').mask[state])
     need_S = isinstance(rng, (float, int, type(None)))
-    if not has_S and need_S:
+    if no_S and need_S:
         raise ValueError("S error not calculated, cannot auto-generate range")
     if rng is None:
         factor = 2
@@ -824,11 +840,25 @@ def S_space(err, state, rng=None, steps=20):
         rng_arr = rng
     if isinstance(rng, (int, float, type(None))) or len(rng) == 2:
         rng_arr = np.linspace(Slow, Shigh, steps, endpoint=True)
+    # check for values that already exist
+    mask = np.ones(rng_arr.shape, dtype=bool)
+    ll_arr = np.empty(rng_arr.shape)
+    if hasattr(err, 'S_rng'):
+        _, keep, drop = np.intersect1d(err.S_rng[state], rng_arr, return_indices=True)
+        mask[drop] = False
+        fill_arr = err.S_ll_rng[state][keep]
+        rng_arr_m = rng_arr[mask]
+    else:
+        rng_arr_m = rng_arr
+        fill_arr = np.zeros(0)
+    # perform calculation
     prior, trans = err.model.prior, err.model.trans
-    obs = [_S_adjust(err.parent, (S, ), (state, )) for S in rng_arr]
+    obs = (_S_adjust(err.parent, (S, ), (state, )) for S in rng_arr_m)
     models = [h2.h2mm_model(prior, trans, ob) for ob in obs]
     models = h2.H2MM_arr(models, err.parent.parent.index, err.parent.parent.parent.times)
-    ll_arr = np.array([mod.loglik for mod in models])
+    # infill already calculated numbers
+    ll_arr[mask] = np.array([mod.loglik for mod in models])
+    ll_arr[~mask] = fill_arr
     return rng_arr, ll_arr
 
 
@@ -845,6 +875,43 @@ class Loglik_Error:
     
     def __init__(self, parent):
         self.parent = parent
+        #: all transition rates evalated so far, oranized as numpy.ndarray of numpy.ndarrays
+        self.t_rate_rng = np.empty((self.nstate, self.nstate), dtype=object)
+        #: loglik of all transition rates evalated so far, oranized as numpy.ndarray of numpy.ndarrays
+        self.t_ll_rng = np.empty((self.nstate, self.nstate), dtype=object)
+        self._trans = np.ma.empty((self.nstate, self.nstate, 2))
+        self._trans[...] = np.ma.masked
+        self.trans_ll = np.ma.empty((self.nstate, self.nstate, 2))
+        self.trans_ll[...] = np.ma.masked
+        for i, j in permutations(range(self.nstate), 2):
+            self.t_rate_rng[i,j] = np.empty((0,))
+            self.t_ll_rng[i,j] = np.empty((0,))
+        if parent._hasE:
+            #: all FRET efficiencies evalated so far, oranized as numpy.ndarray of numpy.ndarrays
+            self.E_rng = np.empty((self.nstate), dtype=object)
+            #: loglikelihoods of all FRET efficiencies evalated so far, oranized as numpy.ndarray of numpy.ndarrays
+            self.E_ll_rng = np.empty((self.nstate), dtype=object)
+            self._E = np.ma.empty((self.nstate,2)) 
+            self._E[...] = np.ma.masked
+            self.E_ll =  np.ma.empty((self.nstate,2))
+            self.E_ll[...] = np.ma.masked
+            for i in range(self.nstate):
+                self.E_rng[i] = np.empty((0,))
+                self.E_ll_rng[i] = np.empty((0,))
+        if parent._hasS:
+            #: all stoichiometries evalated so far, oranized as numpy.ndarray of numpy.ndarrays
+            self.S_rng = np.empty((self.nstate), dtype=object)
+            #: loglikelihoods of all stoichiometries evalated so far, oranized as numpy.ndarray of numpy.ndarrays
+            self.S_ll_rng = np.empty((self.nstate), dtype=object)
+            self._S = np.ma.empty((self.nstate,2)) 
+            self._S[...] = np.ma.masked
+            self.S_ll =  np.ma.empty((self.nstate,2))
+            self.S_ll[...] = np.ma.masked
+            for i in range(self.nstate):
+                self.S_rng[i] = np.empty((0,))
+                self.S_ll_rng[i] = np.empty((0,))
+    
+
         # for use later in code, when covariate is fully implemented
         # self._locstup = self._gen_locs_list
     
@@ -859,30 +926,9 @@ class Loglik_Error:
     #     loc_enum += [('t', i, j) for i, j in permutations(range(self.parent.nstate), 2)]
     #     return tuple(loc_enum)
     
-    def _allocate_trans(self):
-        self.t_rate_rng = np.empty((self.nstate, self.nstate), dtype=object)
-        self.t_ll_rng = np.empty((self.nstate, self.nstate), dtype=object)
-        for i, j in permutations(range(self.nstate), 2):
-            self.t_rate_rng[i,j] = np.empty((0,))
-            self.t_ll_rng[i,j] = np.empty((0,))
-    
-    def _allocate_E(self):
-        self.E_rng = np.empty((self.nstate), dtype=object)
-        self.E_ll_rng = np.empty((self.nstate), dtype=object)
-        for i in range(self.nstate):
-            self.E_rng[i] = np.empty((0,))
-            self.E_ll_rng[i] = np.empty((0,))
-    
-    def _allocate_S(self):
-        self.S_rng = np.empty((self.nstate), dtype=object)
-        self.S_ll_rng = np.empty((self.nstate), dtype=object)
-        for i in range(self.nstate):
-            self.S_rng[i] = np.empty((0,))
-            self.S_ll_rng[i] = np.empty((0,))
-    
     @property
     def model(self):
-        """Parent :class:`BurstSort.H2MM_result` object"""
+        """Parent :class:`burstH2MM.BurstSort.H2MM_result` object"""
         return self.parent.model
     
     @property
@@ -893,8 +939,6 @@ class Loglik_Error:
     @property
     def trans(self):
         """[nstate, nstate, 2] matrix of low/high error transition rates"""
-        if not hasattr(self, '_trans'):
-            self.trans_eval()
         return self._trans / self.parent.parent.parent.data.clk_p
     
     @property
@@ -914,13 +958,18 @@ class Loglik_Error:
         return self.trans[:,:,1]
     
     @property
+    def E_lh(self):
+        return self._E
+    
+    def S_lh(self):
+        return self._S
+    
+    @property
     def E(self):
         """
         Estimated error based on the loglikelihood range of low/high E values
         of calculated error
         """
-        if not hasattr(self, '_E'):
-            self.E_eval()
         return (self._E[:,1] - self._E[:,0])/2
     
     @property
@@ -929,9 +978,118 @@ class Loglik_Error:
         Estimated error based on the loglikelihood range of low/high S values
         of calculated error
         """
-        if not hasattr(self, '_S'):
-            self.S_eval()
         return (self._S[:,1] - self._S[:,0])/2
+    
+    def get_trans_err(self, *args, flex=None, factor=1e-1, max_iter=100, thresh=None):
+        """
+        Retrieve or calculate the loglikelihood error of specific transition rate(s).
+
+        Parameters
+        ----------
+        *args : location specifier
+            Transition from_state to_state as integers or slices of transition
+            rates for which the error should be retrieved/calculated.
+        flex : float, optional
+            Allowed variability in target decrease in loglikelihood. 
+            If None use default.
+            The default is None.
+        factor : float, optional
+            Factor by which to offset the transition rate for initial search. The default is 1e-1.
+        max_iter : int, optional
+            maximum number of attempts to try in finding target transition rate.
+            The default is 100.
+        thresh : float, optional
+            Decrease in loglikelihood of adjusted model to target as characterizing
+            the error. The default is None.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of low/high bounds of the loglikelihood error of the requested
+            transition rates.
+
+        """
+        locs = _getindexes((self.nstate, self.nstate), *args)
+        for loc in locs:
+            if np.any(self._trans.mask[tuple(loc)]):
+                self.trans_eval(locs=(loc, ), flex=flex, factor=factor, max_iter=max_iter, thresh=thresh)
+        return self._trans[args+(slice(None),)]
+    
+    def get_E_err(self, *args, flex=None, step=1e-2, max_iter=100, thresh=None, simple=True):
+        """
+        Retrieve or calculate the loglikelihood error of specific FRET efficiency(s).
+
+        Parameters
+        ----------
+        *args : location specifier
+            State(s) as integer or slice of FRET efficiency(s) for which
+            the error should be retrieved/calculated.
+        flex : float, optional
+            Allowed variability in target decrease in loglikelihood. 
+            If None use default.
+            The default is None.
+        factor : float, optional
+            Factor by which to offset the transition rate for initial search. The default is 1e-1.
+        max_iter : int, optional
+            maximum number of attempts to try in finding target transition rate.
+            The default is 100.
+        thresh : float, optional
+            Decrease in loglikelihood of adjusted model to target as characterizing
+            the error. The default is None.
+        simple : bool, optional
+            Whether to return 1 (True) or 2 (False) values showing half the difference,
+            or the low and high values of the requested states
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of loglikelihood errors of requested FRET efficiency(s).
+
+        """
+        locs = _getindexes((self.nstate, ), *args)
+        for loc in locs:
+            loc = tuple(loc)
+            if np.any(self._E.mask[loc]):
+                self.E_eval(locs=loc, flex=flex, step=step, max_iter=max_iter, thresh=thresh)
+        return self.E[args] if simple else self.E_lh[args+(slice(None),)]
+    
+    def get_S_err(self, *args, flex=None, step=1e-2, max_iter=100, thresh=None, simple=True):
+        """
+        Retrieve or calculate the loglikelihood error of specific stoichiometry(s).
+
+        Parameters
+        ----------
+        *args : location specifier
+            State(s) as integer or slice of stoichiometries(s) for which the error
+            should be retrieved/calculated.
+        flex : float, optional
+            Allowed variability in target decrease in loglikelihood. 
+            If None use default.
+            The default is None.
+        step : float, optional
+            Shift in S for initial search. The default is 1e-2.
+        max_iter : int, optional
+            maximum number of attempts to try in finding target transition rate.
+            The default is 100.
+        thresh : float, optional
+            Decrease in loglikelihood of adjusted model to target as characterizing
+            the error. The default is None.
+        simple : bool, optional
+            Whether to return 1 (True) or 2 (False) values showing half the difference,
+            or the low and high values of the requested states
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of loglikelihood errors of requested stoichiometry(s).
+
+        """
+        locs = _getindexes((self.nstate, ), *args)
+        for loc in locs:
+            loc = tuple(loc)
+            if np.any(self._S.mask[loc]):        
+                self.S_eval(locs=loc, flex=flex, step=step, max_iter=max_iter, thresh=thresh)
+        return self.S[args] if simple else self.S_lh[args+(slice(None),)]
     
     def trans_eval(self, locs=None, flex=None, factor=1e-1, max_iter=100, thresh=None):
         """
@@ -962,26 +1120,20 @@ class Loglik_Error:
             thresh = self._thresh
         if flex is None:
             flex = self._flex
-        self._trans = np.empty((self.nstate, self.nstate, 2))
-        self.trans_ll = np.empty((self.nstate, self.nstate, 2))
-        self._allocate_trans()
         for i, j in locs:
+            if i == j:
+                continue
             res = err_trans_search(self.parent, (i,j), flex=flex, factor=factor, max_iter=max_iter, thresh=thresh)
             self._trans[i,j,:], self.trans_ll[i,j,:], self.t_rate_rng[i,j], self.t_ll_rng[i,j] = res
     
     def trans_space(self, state, rng=None, steps=20):
         rng, ll = trans_space(self, state, rng=rng, steps=steps)
-        if hasattr(self, 't_rate_rng'):
-            t_rng = np.concatenate([self.t_rate_rng[state], rng])
-            t_ll_rng = np.concatenate([self.t_ll_rng[state], ll])
-            sort = np.argsort(t_rng)
-            self.t_rate_rng[state] = t_rng[sort]
-            self.t_ll_rng[state] = t_ll_rng[sort]
-        else:
-            self._allocate_trans()
-            self.t_rate_rng[state] = rng
-            self.t_ll_rng[state] = ll
-    
+        t_rng = np.concatenate([self.t_rate_rng[state], rng])
+        t_ll_rng = np.concatenate([self.t_ll_rng[state], ll])
+        sort = np.argsort(t_rng)
+        self.t_rate_rng[state] = t_rng[sort]
+        self.t_ll_rng[state] = t_ll_rng[sort]
+        
     def E_eval(self, locs=None, flex=None, step=1e-2, max_iter=100, thresh=None):
         """
         Evaluate the loglike based error for FRET efficiency
@@ -1007,16 +1159,14 @@ class Loglik_Error:
 
         
         """
+        if not self.parent._hasE:
+            raise AttributeError("Parent BurstData object does not contain DexDem and DexAem streams")
         if locs is None:
             locs = range(self.nstate)
         if thresh is None:
             thresh = self._thresh
         if flex is None:
             flex = self._flex
-        self._E = np.empty((self.nstate,2)) 
-        self.E_ll =  np.empty((self.nstate,2))
-        if not hasattr(self, 'E_rng'):
-            self._allocate_E()
         for i in locs:
             E, E_ll, E_rng, E_ll_rng =  \
                 err_E_search(self.parent, i,flex=flex, step=step, max_iter=max_iter, thresh=thresh)
@@ -1026,7 +1176,7 @@ class Loglik_Error:
             sort = np.argsort(E_rng)
             self.E_rng[i] = E_rng[sort]
             self.E_ll_rng[i] = E_ll_rng[sort]
-    
+            
     def E_space(self, state, rng=None, steps=20):
         """
         Calculate the loglikelihoods of models with a range E values of state.
@@ -1045,9 +1195,9 @@ class Loglik_Error:
         steps : int, optional
             Number of models to evaluate. The default is 20.
         """
+        if not self.parent._hasE:
+            raise AttributeError("Parent BurstData object does not contain DexDem and DexAem streams")
         rng, ll = E_space(self, state, rng=rng, steps=steps)
-        if not hasattr(self, 'E_rng'):
-            self._allocate_E()
         E_rng = np.concatenate([self.E_rng[state], rng])
         E_ll_rng = np.concatenate([self.E_ll_rng[state], ll])
         _, sort = np.unique(E_rng, return_index=True)
@@ -1079,16 +1229,14 @@ class Loglik_Error:
 
         
         """
+        if not self.parent._hasE:
+            raise AttributeError("Parent BurstData object does not contain DexDem and DexAem streams")
         if locs is None:
             locs = range(self.nstate)
         if thresh is None:
             thresh = self._thresh
         if flex is None:
             flex = self._flex
-        self._S = np.empty((self.nstate,2)) 
-        self.S_ll =  np.empty((self.nstate,2))
-        if not hasattr(self, 'S_rng'):
-            self._allocate_S()
         for i in locs:
             S, S_ll, S_rng, S_ll_rng =  \
                 err_S_search(self.parent, i,flex=flex, step=step, max_iter=max_iter, thresh=thresh)
@@ -1117,9 +1265,9 @@ class Loglik_Error:
         steps : int, optional
             Number of models to evaluate. The default is 20.
         """
+        if not self.parent._hasE:
+            raise AttributeError("Parent BurstData object does not contain DexDem and DexAem streams")
         rng, ll = S_space(self, state, rng=rng, steps=steps)
-        if not hasattr(self, 'S_rng'):
-            self._allocate_S()
         S_rng = np.concatenate([self.S_rng[state], rng])
         S_ll_rng = np.concatenate([self.S_ll_rng[state], ll])
         _, sort = np.unique(S_rng, return_index=True)
@@ -1176,9 +1324,9 @@ class Loglik_Error:
         S_k.update(S_kw)
         
         self.trans_eval(**trans_k)
-        if frb.Ph_sel(Dex='Dem') in self.parent.parent.parent.ph_streams and frb.Ph_sel(Dex='Aem') in self.parent.parent.parent.ph_streams:
+        if self.parent._hasE:
             self.E_eval(**E_k)
-            if frb.Ph_sel(Aex='Aem') in self.parent.parent.parent.ph_streams:
+            if self.parent._hasS:
                 self.S_eval(**S_k)
     
     

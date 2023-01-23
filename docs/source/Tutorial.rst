@@ -36,7 +36,7 @@ So let's load the data and search for bursts::
     from matplotlib import pyplot as plt
 
     import fretbursts as frb
-    import burstH2MM as hmm
+    import burstH2MM as bhm
 
     sns = frb.init_notebook()
 
@@ -79,7 +79,7 @@ And finally search for bursts and refine the selection by appropriate burst size
 
 Now that the data is selected, we can segment the photons into bursts, which will be stored in a |BurstData| object::
 
-    bdata = hmm.BurstData(frbdata_sel)
+    bdata = bhm.BurstData(frbdata_sel)
 
 ``bdata`` is now the object that will organize the downstream information for optimization.
 When ``bdata`` was created, it automatically also generated a |H2MM_list| object, stored in |models| which is where we can perform the |H2MM| optimizations.
@@ -93,7 +93,7 @@ So let's run a round of optimizations::
 
 When you run this, it will optimize |H2MM| models over a range of states. The next task is to select the ideal number of states. To select this, there are several options, but for now we will use the Integrated Complete Likelihood (ICL). The model with the minimal ICL is *usually* the best model::
 
-    hmm.ICL_plot(bdata.models)
+    bhm.ICL_plot(bdata.models)
 
 .. image:: images/iclplot.png
 
@@ -101,9 +101,9 @@ Now that the ideal model has been identified, we can plot the E/S values of each
 We can also overlay the E/S values derived from the |H2MM| model over the dwell values. Note that we pass the ``s=50, c="r"`` arguments to the |scatter_ES| function, which ensure the size of the points is appropriate, as well as making the color pop ::
 
     # plot the dwell ES of the result
-    hmm.dwell_ES_scatter(bdata.models[2])
+    bhm.dwell_ES_scatter(bdata.models[2])
     # overlay with the main values,
-    hmm.scatter_ES(bdata.models[2], s=50, c="r")
+    bhm.scatter_ES(bdata.models[2], s=50, c="r")
 
 .. image:: images/dwellES.png
 
@@ -138,7 +138,7 @@ Before using divisors, and therefore nanotimes, it is best to analyze the lifeti
 
 ::
 
-    hmm.raw_nanotime_hist(bdata)
+    bhm.raw_nanotime_hist(bdata)
 
 .. image:: images/ntdec.png
 
@@ -167,7 +167,7 @@ So let's extract the |H2MM_list| object generated, and then run an optimization:
 
 Next, as before, we need to look at the ICL, to choose the ideal model ::
 
-    hmm.ICL_plot(bdata.div_models[div_name])
+    bhm.ICL_plot(bdata.div_models[div_name])
 
 .. image:: images/diviclplot.png
 
@@ -176,7 +176,7 @@ The 3 state model again looks like the best fit, so we will reference it with in
 Now we can finally plot the distribution of nanotimes per state.
 For this there is the |dwell_tau_hist| ::
 
-    hmm.dwell_tau_hist(bdata.div_models[div_name][2])
+    bhm.dwell_tau_hist(bdata.div_models[div_name][2])
 
 .. image:: images/dwellnthist.png
 

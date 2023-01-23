@@ -17,7 +17,7 @@ Customization
         import numpy as np
         from matplotlib import pyplot as plt
         import fretbursts as frb
-        import burstH2MM as hmm
+        import burstH2MM as bhm
         sns = frb.init_notebook()
         # path to your file
         filename = 'your_file.hdf5'
@@ -33,7 +33,7 @@ Customization
         # parameters to the particulars of your experiment
         frbdata_sel = frbdata.select_bursts(frb.select_bursts.size, th1=50)
         # now make the BurstData object
-        bdata = hmm.BurstData(frbdata_sel)
+        bdata = bhm.BurstData(frbdata_sel)
         bdata.models.calc_models()
         # set irf_thresh since later in tutorial we will discuss nanotimes
         bdata.irf_thresh = np.array([2355, 2305, 220])
@@ -60,9 +60,9 @@ For option 1, the appropriately named functions |calc_nanohist| and |calc_dwell_
 To set a threshold, use the keyword argument ``conf_thresh`` like so::
 
     # recalculate the nanotime histogram excluding photons with a scale value less than 0.3
-    nanohist = hmm.calc_nanohist(bdata.models[2], conf_thresh=0.3)
+    nanohist = bhm.calc_nanohist(bdata.models[2], conf_thresh=0.3)
     # calculate mean nanotimes of DexDem stream with same threshold
-    dwell_nano_mean_dd = hmm.calc_dwell_nanomean(bdata.models[2], frb.Ph_sel(Dex='Dem'), 2355, conf_thresh=0.3)
+    dwell_nano_mean_dd = bhm.calc_dwell_nanomean(bdata.models[2], frb.Ph_sel(Dex='Dem'), 2355, conf_thresh=0.3)
 
 .. note::
 
@@ -112,24 +112,24 @@ For instance, if you know your |AA| stream will introduce undesirable behavior, 
 So let's demonstrate this, where we will perform |H2MM| in the original form, using only |DD| and |DA| streams::
 
     # make 2 stream BurstData
-    spdata = hmm.BurstData(frbdata_sel, ph_streams=[frb.Ph_sel(Dex='Dem'), frb.Ph_sel(Dex='Aem')])
+    spdata = bhm.BurstData(frbdata_sel, ph_streams=[frb.Ph_sel(Dex='Dem'), frb.Ph_sel(Dex='Aem')])
     # run optimization
     spdata.models.calc_models()
     # plot ICL to choose the best model
-    hmm.ICL_plot(spdata.models)
+    bhm.ICL_plot(spdata.models)
 
 .. image:: images/spICL.png
     
 Great! Now we can look at the dwell FRET histogram::
 
-    hmm.dwell_E_hist(spdata.models[2])
+    bhm.dwell_E_hist(spdata.models[2])
 
 .. image:: images/spEhist.png
 
 
 Just be aware, if you try to get a stoichiometry based value (any of them!) you will get an error:
 
->>> hmm.dwell_ES_scatter(spdata.models[2])
+>>> bhm.dwell_ES_scatter(spdata.models[2])
 AttributeError: Parent BurstData must include AexAem stream
 
 
@@ -159,10 +159,10 @@ We will use the |raw_nanotime_hist| to plot the nanotime decays, and place verti
 
     fig, ax = plt.subplots()
     # plot histogram of nanotimes by stream
-    hmm.raw_nanotime_hist(bdata, ax=ax)
+    bhm.raw_nanotime_hist(bdata, ax=ax)
     divs = bdata.div_models[name].divisor_scheme
     # plot vertical lines of divs
-    hmm.axline_divs(bdata.div_models[name], ax=ax)
+    bhm.axline_divs(bdata.div_models[name], ax=ax)
 
 .. image:: images/divisor2.png
 
@@ -174,9 +174,9 @@ We will use the |raw_nanotime_hist| to plot the nanotime decays, and place verti
     # now call same plotting code as before
     fig, ax = plt.subplots()
     # plot histogram of nanotimes by stream
-    hmm.raw_nanotime_hist(bdata, ax=ax)
+    bhm.raw_nanotime_hist(bdata, ax=ax)
     # plot vertical lines of divs
-    hmm.axline_divs(bdata.div_models[name211], ax=ax)
+    bhm.axline_divs(bdata.div_models[name211], ax=ax)
 
 .. image:: images/divisor211.png
 
@@ -192,9 +192,9 @@ So, if you call |auto_div| with ``inlcude_irf_thresh=True``, there will be one e
     nameirf = bdata.auto_div(2, include_irf_thresh=True)
     # call same plotting code as before
     fig, ax = plt.subplots()
-    hmm.raw_nanotime_hist(bdata, ax=ax)
+    bhm.raw_nanotime_hist(bdata, ax=ax)
     # plot vertical lines of divs
-    hmm.axline_divs(bdata.div_models[nameirf], ax=ax)
+    bhm.axline_divs(bdata.div_models[nameirf], ax=ax)
 
 .. image:: images/divisorirf.png
 
@@ -207,10 +207,10 @@ The function call looks like this::
     namecustom = bdata.new_div(divs)
     # call same plotting code as before
     fig, ax = plt.subplots()
-    hmm.raw_nanotime_hist(bdata, ax=ax)
+    bhm.raw_nanotime_hist(bdata, ax=ax)
     divs = bdata.div_models[namecustom].divisor_scheme
     # plot vertical lines of divs
-    hmm.axline_divs(bdata.div_models[namecustom], ax=ax)
+    bhm.axline_divs(bdata.div_models[namecustom], ax=ax)
 
 .. image:: images/divisorcustom.png
 

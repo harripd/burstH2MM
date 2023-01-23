@@ -12,7 +12,7 @@ Simulations
         import numpy as np
         from matplotlib import pyplot as plt
         import fretbursts as frb
-        import burstH2MM as hmm
+        import burstH2MM as bhm
         sns = frb.init_notebook()
         # path to your file
         filename = 'your_file.hdf5'
@@ -28,7 +28,7 @@ Simulations
         # parameters to the particulars of your experiment
         frbdata_sel = frbdata.select_bursts(frb.select_bursts.size, th1=50)
         # now make the BurstData object
-        bdata = hmm.BurstData(frbdata_sel)
+        bdata = bhm.BurstData(frbdata_sel)
         bdata.models.calc_models()
         # set irf_thresh since later in tutorial we will discuss nanotimes
         bdata.irf_thresh = np.array([2355, 2305, 220])
@@ -40,7 +40,7 @@ Using the probabilities derived from the model, and a set of arrival times, the 
 
 ::
 
-   sdata = hmm.sim.simulate(bdata.models[2])
+   sdata = bhm.sim.simulate(bdata.models[2])
 
 The result is a special |Sim_Result| object, which mimics a |H2MM_result| object, but uses the simulated times and stores the actual simulated path instead of the *Viterbi* path in the path variable.
 
@@ -53,7 +53,7 @@ array([0.29166667, 0.04      , 0.21917808, ..., 0.01724138, 0.17073171, 0.035714
 And it even functions in the plotting functions::
 
     fig, ax = plt.subplots(figsize=(5,5))
-    hmm.dwell_ES_scatter(sdata, ax=ax)
+    bhm.dwell_ES_scatter(sdata, ax=ax)
 
 .. image:: images/simESscatter.png
 

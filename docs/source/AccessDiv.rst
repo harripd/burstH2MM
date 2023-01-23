@@ -17,7 +17,7 @@ Access Divisors and Models
         import numpy as np
         from matplotlib import pyplot as plt
         import fretbursts as frb
-        import burstH2MM as hmm
+        import burstH2MM as bhm
         sns = frb.init_notebook()
         # path to your file
         filename = 'your_file.hdf5'
@@ -33,7 +33,7 @@ Access Divisors and Models
         # parameters to the particulars of your experiment
         frbdata_sel = frbdata.select_bursts(frb.select_bursts.size, th1=50)
         # now make the BurstData object
-        bdata = hmm.BurstData(frbdata_sel)
+        bdata = bhm.BurstData(frbdata_sel)
         bdata.models.calc_models()
 
 Access within objects
@@ -96,7 +96,7 @@ Now, let's see the code as it was before in the :ref:`tutorial <tuthidden>`::
 
     # calculate models
     bdata.models.calc_models()
-    hmm.ICL_plot(bdata.models)
+    bhm.ICL_plot(bdata.models)
 
 .. image:: images/acdivobjreficl.png
 
@@ -104,7 +104,7 @@ Which we can re-write as: ::
 
     models_list = bdata.models
     models_list.calc_models()
-    hmm.ICL_plot(models_list)
+    bhm.ICL_plot(models_list)
 
 .. image:: images/acdivobjreficl.png
 
@@ -113,7 +113,7 @@ Finally, since these models are all connected, we can even swap the last lines l
     models_list = bdata.models
     models_list.calc_models()
     # models_list refers to the same thing as bdata.models
-    hmm.ICL_plot(bdata.models)
+    bhm.ICL_plot(bdata.models)
 
 .. image:: images/acdivobjreficl.png
 
