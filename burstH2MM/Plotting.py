@@ -17,7 +17,7 @@ through various keyword arguments.
 """
 
 from collections.abc import Iterable
-from itertools import cycle, repeat, permutations
+from itertools import chain, cycle, repeat, permutations
 import functools
 import warnings
 import numpy as np
@@ -37,9 +37,12 @@ _color_dict = {frb.Ph_sel(Dex="Dem"):'g', frb.Ph_sel(Dex="Aem"):'r', frb.Ph_sel(
 def _useideal(func):
     @functools.wraps(func)
     def wrap(*args, **kwargs):
+        args = list(args)
+        if isinstance(args[0], BurstSort.BurstData):
+            args[0] = args[0].models
         if isinstance(args[0], BurstSort.H2MM_list):
-            assert hasattr(args[0], 'ideal'), ValueError("Ideal model not set, set with H2MM_list.ideal = ")
-            args = list(args)
+            if not hasattr(args[0], 'ideal'):
+                raise ValueError("Ideal model not set, set with H2MM_list.ideal = ")
             args[0] = args[0][args[0].ideal]
         return func(*args, **kwargs)
     return wrap
@@ -453,7 +456,8 @@ def scatter_ES(model, ax=None, add_corrections=False, states=None, **kwargs):
 @_useideal
 def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,  
                    states=None, positions=0.5,rotate=True, sep=2e-2, fstring='3.0f', 
-                   from_arrow='-', to_arrow='-|>', state_kwargs=None, **kwargs):
+                   from_arrow='-', to_props=None, to_arrow='-|>', from_props=None, 
+                   arrowprops=None, state_kwargs=None, **kwargs):
     """
     Generate arrows between states in E-S plot indicating the transition rate.
 
@@ -522,16 +526,35 @@ def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,
         state_kwargs = [[kwargs for j in range(model.nstate)] for i in range(model.nstate)]
     if isinstance(positions,  (float, int)):
         positions = positions * np.ones((model.nstate, model.nstate))
-    base_kwargs = dict(arrowprops={'color':'k'}, xycoords='data', textcoords='data', 
-                       horizontalalignment='center', verticalalignment='center',
-                       rotation_mode='anchor', transform_rotates_text=True)
+    if arrowprops is None:
+        arrowprops = {'color':'k'}
+    if not isinstance(arrowprops, dict):
+        raise TypeError(f"arrowprops must be dict, got {type(arrowprops)}")
+    else:
+        arrowprops = _update_ret({'color':'k'}, arrowprops)
+    if to_props is None:
+        to_props = dict()
+    if not isinstance(to_props, (dict, map)):
+        raise TypeError(f"to_props must be mapping, got {type(to_props)}")
+    if from_props is None:
+        from_props = dict()
+    if not isinstance(from_props, (dict, map)):
+        raise ValueError(f"from_props must be mapping, got {type(from_props)}")
+    base_kwargs = dict(xycoords='data', textcoords='data', horizontalalignment='center', 
+                       verticalalignment='center', rotation_mode='anchor', 
+                       transform_rotates_text=True)
+    to_kwargs = base_kwargs.copy()
+    from_kwargs = base_kwargs.copy()
+    to_kwargs['arrowprops'] = _update_ret(arrowprops, {'arrowstyle':to_arrow, **to_props})
+    from_kwargs['arrowprops'] = _update_ret(arrowprops, {'arrowstyle':from_arrow, **from_props})
     E = model.E_corr if add_corrections else model.E
     S = model.S_corr if add_corrections else model.S
     annos = list()
     for i, j in states:
         tstr = ('%%%s' % fstring) % model.trans[i,j]
         try:
-            st_kw = _update_ret(base_kwargs, state_kwargs[i][j])
+            st_kw_to = _update_ret(to_kwargs, state_kwargs[i][j])
+            st_kw_from = _update_ret(from_kwargs, state_kwargs[i][j])
         except IndexError:
             raise IndexError(f"state_kwargs too short, state_kwargs[{i}][{j}] out of range")
         except Exception as e:
@@ -557,15 +580,13 @@ def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,
                 angle = 90.0 if S[j] > S[i] else -90.0
         else:
             angle = 0.0
-        st_kw['arrowprops']['arrowstyle'] = to_arrow
         anno = [None for _ in range(2)]
         try:
-            anno[0] = ax.annotate(tstr, dest, xytext=text, rotation=angle, **st_kw)
+            anno[0] = ax.annotate(tstr, dest, xytext=text, rotation=angle, **st_kw_to)
         except Exception as e:
             raise e
-        st_kw['arrowprops']['arrowstyle'] = from_arrow
         try:
-            anno[1] = ax.annotate(tstr, orig, xytext=text, rotation=angle, **st_kw)
+            anno[1] = ax.annotate(tstr, orig, xytext=text, rotation=angle, **st_kw_from)
         except Exception as e:
             raise e
         annos.append(anno)
@@ -1437,6 +1458,8 @@ def _stat_disc_plot(model_list, param, highlight_ideal=False, ideal_kwargs=None,
         kwargs = {'c':'b'}
     ax = _check_ax(ax)
     mask = np.array([opt is not None for opt in model_list.opts])
+    if mask.size == 0:
+        raise ValueError(f"No models calculated, cannot plot {param}")
     states = np.arange(1, len(model_list.opts)+1)
     vals = getattr(model_list, param)
     collections = list()
@@ -1482,6 +1505,7 @@ def ICL_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwa
     """
     collections = _stat_disc_plot(model_list, 'ICL',highlight_ideal=highlight_ideal, ideal_kwargs=ideal_kwargs, ax=ax,**kwargs)
     return collections
+
 
 def BIC_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwargs):
     """
@@ -1539,6 +1563,7 @@ def BICp_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kw
     collections = _stat_disc_plot(model_list, 'BIC',highlight_ideal=highlight_ideal, ideal_kwargs=ideal_kwargs, ax=ax,**kwargs)
     return collections
 
+
 def path_BIC_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kwargs):
     """
     Plot the Bayes Information Criterion of the most likely path of each state model.
@@ -1566,6 +1591,7 @@ def path_BIC_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,
     """
     collections = _stat_disc_plot(model_list, 'path_BIC',highlight_ideal=highlight_ideal, ideal_kwargs=ideal_kwargs, ax=ax,**kwargs)
     return collections
+
 
 def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, yscale='linear',
                       normalize=False, **kwargs):
@@ -1651,6 +1677,7 @@ def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, yscale='l
     else:
         ax.set_ylabel("counts")
     return collections, leg
+
 
 @_useideal
 def state_nanotime_hist(model, states=None, state_kwargs=None, 
@@ -1833,7 +1860,8 @@ __ll_scatter_params = {'E':('E_rng', 'E_ll_rng', '_E',
                             lambda err: getattr(err, 'trans_space'))}
 
 @_useideal
-def ll_param_scatter(err, mparam, ax=None, flex=None, thresh=None, space_kwargs=None, **kwargs):
+def ll_param_scatter(err, param, loc, ax=None, flex=None, thresh=None, space_kwargs=None,
+                     rng_only=True, logscale=False, label_kwargs=None, **kwargs):
     """
     Generic function for plotting 1D scatter of how loglikelihood varies along a
     given model parameter
@@ -1843,10 +1871,10 @@ def ll_param_scatter(err, mparam, ax=None, flex=None, thresh=None, space_kwargs=
     err : H2MM_result or Loglik_Error
         Model or loglik_error object to plot variability of loglikelihood along
         specified parameter.
-    mparam : tuple[str, int, (int)]
-        tuple specifying which model parameter to vary.
-        For E and S, specify as ('E', state) or ('S', state)
-        For transition rates, specify as ('trans', from_state, to_state)
+    param : str
+        which parameter to plot
+    loc : tuple[int] or tuple[int, int]
+        the state or transition to plot
     ax : matplotlib.axes or None, optional
         The axes where the plot will be placed. The default is None.
     flex : float, optional
@@ -1856,6 +1884,22 @@ def ll_param_scatter(err, mparam, ax=None, flex=None, thresh=None, space_kwargs=
     thresh : float, optional
         Decrease in loglikelihood of adjusted model to target as characterizing
         the error. The default is None.
+    space_kwargs : dict, optional
+        Dictionary of keyword arguments passed to the respective `E/S/trans_space()`
+        function. These are `rng` to specify the range of values to scan, and 
+        `steps`, which specifies how many points to place evenly within the range.
+        The default is None
+    rng_only: bool, optional
+        If `True` only plot the specified range around the optimal parameter
+        (the result of the :meth:`burstH2MM.ModelError.Loglik_Error.E_space`, 
+        :meth:`burstH2MM.ModelError.Loglik_Error.S_space` or 
+        :meth:`burstH2MM.ModelError.Loglik_Error.trans_space` functions), if `False`
+        plot all values evaluated ever for the logliklihood varried across the
+        given parameter. The default is True.
+    logscale : bool, optional
+        Whether or not to plot the x axis in a log-scale. The default is False.
+    label_kwargs : dict
+        Keyword arguments passed to ax.set_xlabel and ax.set_ylabel
     **kwargs : dict
         Keyword arguments passed to ax.scatter.
 
@@ -1868,25 +1912,37 @@ def ll_param_scatter(err, mparam, ax=None, flex=None, thresh=None, space_kwargs=
     ax = _check_ax(ax)
     if isinstance(err, BurstSort.H2MM_result):
         err = err.loglik_err
-    if mparam[0] not in __ll_scatter_params:
-        raise ValueError(f"First value of mparam must be 'E', 'S', 't', or 'trans', got {mparam[0]}")
-    attr_rng, attr_ll, attr_err, attr_eval, attr_space = __ll_scatter_params[mparam[0]]
+    if param not in __ll_scatter_params:
+        raise ValueError(f"param must be 'E', 'S', 't', or 'trans', got {param}")
+    attr_rng, attr_ll, attr_err, attr_eval, attr_space = __ll_scatter_params[param]
     attr_eval, attr_space = attr_eval(err), attr_space(err)
-    if space_kwargs is not None:
-        if np.any(getattr(err, attr_err).mask[mparam[1:]]) and (not isinstance(space_kwargs['rng'], Iterable) or len(space_kwargs) <= 2):
-            attr_eval(locs=(mparam[1:], ), thresh=thresh, flex=flex)
-        attr_space(mparam[1:], **space_kwargs)
-    x = getattr(err, attr_rng)[mparam[1:]]
-    y = getattr(err, attr_ll)[mparam[1:]]
+    x = getattr(err, attr_rng)[loc]
+    y = getattr(err, attr_ll)[loc]
+    if space_kwargs is not None or rng_only:
+        if np.any(getattr(err, attr_err).mask[loc]) and (not isinstance(space_kwargs['rng'], Iterable) or len(space_kwargs) <= 2):
+            attr_eval(locs=(loc, ), thresh=thresh, flex=flex)
+        x_t, y_t = attr_space(loc, **space_kwargs if space_kwargs is not None else dict())
+        if rng_only:
+            x, y = x_t, y_t
+    if label_kwargs is None:
+        label_kwargs = dict()
+    elif not isinstance(label_kwargs, dict):
+        raise TypeError(f"label_kwargs must be dict, got {type(label_kwargs)}")
     if x.size == 0:
-        attr_eval(locs=(mparam[1:], ), thresh=thresh, flex=flex)
-        attr_space(mparam[1:])
-        x = getattr(err, attr_rng)[mparam[1:]]
-        y = getattr(err, attr_ll)[mparam[1:]]
+        attr_eval(locs=(loc, ), thresh=thresh, flex=flex)
+        attr_space(loc)
+        x = getattr(err, attr_rng)[loc]
+        y = getattr(err, attr_ll)[loc]
+    if logscale:
+        ax.set_xscale('log')
     ret = ax.scatter(x,y, **kwargs)
+    xlabel = err.parent.param_labels[param]
+    xlabel += f" state {loc[0]}" if len(loc)==1 else f" from state {loc[0]} to state {loc[1]}"
+    ax.set_xlabel(xlabel, **label_kwargs)
+    ax.set_ylabel("LL", **label_kwargs)
     return ret
 
-def ll_E_scatter(err, state, ax=None, rng=None, steps=20, flex=None, thresh=None, **kwargs):
+def ll_E_scatter(err, state, ax=None, rng=None, steps=20, **kwargs):
     """
     Plot how the loglikelihood decreases when varying the FRET efficiency of a
     specified state away from the optimal value.
@@ -1917,6 +1973,20 @@ def ll_E_scatter(err, state, ax=None, rng=None, steps=20, flex=None, thresh=None
     thresh : float, optional
         Decrease in loglikelihood of adjusted model to target as characterizing
         the error. The default is None.
+    space_kwargs : dict, optional
+        Dictionary of keyword arguments passed to the respective `E/S/trans_space()`
+        function. These are `rng` to specify the range of values to scan, and 
+        `steps`, which specifies how many points to place evenly within the range.
+        The default is None
+    rng_only: bool, optional
+        If `True` only plot the specified range around the optimal parameter
+        (the result of the :meth:`burstH2MM.ModelError.Loglik_Error.E_space`, 
+        :meth:`burstH2MM.ModelError.Loglik_Error.S_space` or 
+        :meth:`burstH2MM.ModelError.Loglik_Error.trans_space` functions), if `False`
+        plot all values evaluated ever for the logliklihood varried across the
+        given parameter. The default is True.
+    label_kwargs : dict
+        Keyword arguments passed to ax.set_xlabel and ax.set_ylabel
     **kwargs : dict
         Keyword arguments passed to ax.scatter.
 
@@ -1933,11 +2003,11 @@ def ll_E_scatter(err, state, ax=None, rng=None, steps=20, flex=None, thresh=None
     """
     if not isinstance(state, int):
         raise ValueError("state must be an int")
-    ret = ll_param_scatter(err, ('E', state), ax=ax, flex=flex, thresh=thresh, 
+    ret = ll_param_scatter(err, 'E', (state, ), ax=ax, 
                            space_kwargs={'rng':rng, 'steps':steps}, **kwargs)
     return ret
 
-def ll_S_scatter(err, state, ax=None, rng=None, steps=20, flex=None, thresh=None, **kwargs):
+def ll_S_scatter(err, state, ax=None, rng=None, steps=20, **kwargs):
     """
     Plot how the loglikelihood decreases when varying the stoichiometry of a
     specified state away from the optimal value.
@@ -1967,6 +2037,15 @@ def ll_S_scatter(err, state, ax=None, rng=None, steps=20, flex=None, thresh=None
     thresh : float, optional
         Decrease in loglikelihood of adjusted model to target as characterizing
         the error. The default is None.
+    rng_only: bool, optional
+        If `True` only plot the specified range around the optimal parameter
+        (the result of the :meth:`burstH2MM.ModelError.Loglik_Error.E_space`, 
+        :meth:`burstH2MM.ModelError.Loglik_Error.S_space` or 
+        :meth:`burstH2MM.ModelError.Loglik_Error.trans_space` functions), if `False`
+        plot all values evaluated ever for the logliklihood varried across the
+        given parameter. The default is True.
+    label_kwargs : dict
+        Keyword arguments passed to ax.set_xlabel and ax.set_ylabel
     **kwargs : dict
         Keyword arguments passed to ax.scatter.
 
@@ -1983,11 +2062,11 @@ def ll_S_scatter(err, state, ax=None, rng=None, steps=20, flex=None, thresh=None
     """
     if not isinstance(state, int):
         raise ValueError("state must be an int")
-    ret = ll_param_scatter(err, ('S', state), ax=ax, flex=flex, thresh=thresh, 
+    ret = ll_param_scatter(err, 'S', (state, ), ax=ax,
                            space_kwargs={'rng':rng, 'steps':steps}, **kwargs)
     return ret
 
-def ll_trans_scatter(err, from_state, to_state, ax=None, rng=None, steps=20, flex=None, thresh=None, **kwargs):
+def ll_trans_scatter(err, from_state, to_state, ax=None, rng=None, steps=20, logscale=True, **kwargs):
     """
     Plot how the loglikelihood decreases when varying the transition rate of a
     specified (from_state to_state) pair away from the optimal value.
@@ -2013,6 +2092,8 @@ def ll_trans_scatter(err, from_state, to_state, ax=None, rng=None, steps=20, fle
         error range, or array of S values. The default is None.
     steps : int, optional
         Number of models to evaluate. The default is 20.
+    logscale : bool, optional
+        Whether or not to plot the x axis in a log-scale. The default is True.
     flex : float, optional
         Allowed variability in target decrease in loglikelihood. 
         If None use default.
@@ -2020,6 +2101,15 @@ def ll_trans_scatter(err, from_state, to_state, ax=None, rng=None, steps=20, fle
     thresh : float, optional
         Decrease in loglikelihood of adjusted model to target as characterizing
         the error. The default is None.
+    rng_only: bool, optional
+        If `True` only plot the specified range around the optimal parameter
+        (the result of the :meth:`bursH2MM.ModelError.Loglik_Error.E_space`, 
+        :meth:`burstH2MM.ModelError.Loglik_Error.S_space` or 
+        :meth:`burstH2MM.ModelError.Loglik_Error.trans_space` functions), if `False`
+        plot all values evaluated ever for the logliklihood varried across the
+        given parameter. The default is True.
+    label_kwargs : dict
+        Keyword arguments passed to ax.set_xlabel and ax.set_ylabel
     **kwargs : dict
         Keyword arguments passed to ax.scatter.
 
@@ -2030,7 +2120,7 @@ def ll_trans_scatter(err, from_state, to_state, ax=None, rng=None, steps=20, fle
 
     Returns
     -------
-    ret : matplotlib.collections.PathCollection
+    matplotlib.collections.PathCollection
         Path collection returned by ax.scatter.
     
     """
@@ -2038,48 +2128,530 @@ def ll_trans_scatter(err, from_state, to_state, ax=None, rng=None, steps=20, fle
         raise ValueError("from_state must be an int")
     if not isinstance(to_state, int):
         raise ValueError("to_state must be an int")
-    ret = ll_param_scatter(err, ('trans', from_state, to_state), ax=ax, flex=flex, thresh=thresh, 
+    ret = ll_param_scatter(err, 'trans', (from_state, to_state), ax=ax, logscale=logscale, 
                            space_kwargs={'rng':rng, 'steps':steps}, **kwargs)
     return ret
 
-
 @_useideal
-def _plot_burst_path(model, burst, param='E', ax=None, color=None, linewidth=None):
+def covar_param_ll_scatter(err, param, state, ax=None, label_kwargs=None,**kwargs):
     """
-    Not ready yet
+    Plot the loglikelihood of the covariance of a given parameter type and state/
+    transition.
 
     Parameters
     ----------
-    model : TYPE
-        DESCRIPTION.
-    burst : TYPE
-        DESCRIPTION.
-    param : TYPE, optional
-        DESCRIPTION. The default is 'E'.
-    ax : TYPE, optional
-        DESCRIPTION. The default is None.
-    color : TYPE, optional
-        DESCRIPTION. The default is None.
-    linewidth : TYPE, optional
-        DESCRIPTION. The default is None.
+    err : Loglik_Error
+        Error object to plot.
+    param : str
+        parameter to plot, one of the parameters of :class:`ModelSet`.
+    state : tuple[int] or tuple[int, int]
+        State or transition to plot (the state/transition which was fixed for the
+        given parameter type during optimizations).
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    label_kwargs : dict
+        Keyword arguments passed to ax.set_xlabel and ax.set_ylabel
+    **kwargs : dict
+        Dictionary of keyword arguments passed to ax.scatter.
 
     Returns
     -------
-    lc : TYPE
+    matplotlib.collections.PathCollection
+        Path collection returned by ax.scatter.
+    
+    """
+    if isinstance(err, BurstSort.H2MM_result):
+        err = err.loglik_err
+    if label_kwargs is None:
+        label_kwargs = dict()
+    elif not isinstance(label_kwargs, dict):
+        raise TypeError(f"label_kwargs must be dict, got {type(label_kwargs)}")
+    ax = _check_ax(ax)
+    paramt = param.split("_corr")[0]
+    modarray = getattr(err, paramt+"_covar")
+    if modarray.mask[state]:
+        covar_eval = getattr(err, "covar_"+paramt)
+        covar_eval(state)
+        modarray = getattr(err, paramt+"_covar")
+    modset = modarray[state]
+    x = getattr(modset, param)[(slice(None), ) + state]
+    y = modset.loglik
+    ret = ax.scatter(x, y, **kwargs)
+    xlabel = err.parent.param_labels[param]
+    xlabel += f" state {state[0]} (fixed)" if len(state) == 1 else f" from state {state[0]} to state {state[1]} (fixed)"
+    ax.set_xlabel(xlabel, **label_kwargs)
+    ax.set_ylabel("LL", **label_kwargs)
+    return ret
+
+
+def covar_E_ll_scatter(err, state, ax=None, add_corrections=False,**kwargs):
+    """
+    Plot the loglikelihood of the covariance of E along a given state.
+
+    Parameters
+    ----------
+    err : Loglik_Error
+        Error object to plot.
+    state : int
+        Which state to plot with optimization holding E of that state fixed.
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    **kwargs : dict
+        Dictionary of keyword arguments passed to ax.scatter.
+
+    Returns
+    -------
+    matplotlib.collections.PathCollection
+        Path collection returned by ax.scatter.
+    
+    """
+    Eparam = "E_corr" if add_corrections else "E"
+    ret = covar_param_ll_scatter(err, Eparam, (state, ), ax=ax, **kwargs)
+    return ret
+
+
+def covar_S_ll_scatter(err, state, ax=None, add_corrections=False,**kwargs):
+    """
+    Plot the loglikelihood of the covariance of S along a given state.
+
+    Parameters
+    ----------
+    err : Loglik_Error
+        Error object to plot.
+    state : int
+        Which state to plot with optimization holding S of that state fixed.
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    **kwargs : dict
+        Dictionary of keyword arguments passed to ax.scatter.
+
+    Returns
+    -------
+    matplotlib.collections.PathCollection
+        Path collection returned by ax.scatter.
+    
+    """
+    Sparam = "S_corr" if add_corrections else "S"
+    ret = covar_param_ll_scatter(err, Sparam, (state, ), ax=ax, **kwargs)
+    return ret
+    
+    
+def covar_trans_ll_scatter(err, from_state, to_state, ax=None, **kwargs):
+    """
+    Plot the loglikelihood of the covariance of transition rate along a given
+    transition.
+
+    Parameters
+    ----------
+    err : Loglik_Error
+        Error object to plot.
+    from_state : int
+        State from which the system transitions.
+    to_state : int
+        State to which the system transitions.
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    **kwargs : dict
+        Dictionary of keyword arguments passed to ax.scatter.
+
+    Returns
+    -------
+    matplotlib.collections.PathCollection
+        Path collection returned by ax.scatter.
+    
+    """
+    state = (from_state, to_state)
+    ret = covar_param_ll_scatter(err, "trans", state, ax=ax, **kwargs)
+    return ret
+
+
+def _find_burst(model, burst):
+    """
+    Find the best burst according to the specified criterion.
+
+    Parameters
+    ----------
+    model : H2MM_result
+        :class:`H2MM_result <burstH2MM.BurstData.H2MM_result>` object to find the best burst from.
+    burst : int or str
+        If int, the burst index, and drectly returned. If a string, then what
+        criterion to look for the best burst.
+        
+        Options:
+        
+            1. 'states': find the burst with the most states present
+            2. 'transitions': find the burst with the most transition present
+            3. 'longest': longest burst in data
+            4. 'photons': burst with the most photons
+            
+        For criterion based on maximizing a dwell-based parameter, will return
+        the parameter that maximizes the given criterion first, and then among
+        all of those bursts maximize other dwell-based criterion as well.
+
+    Raises
+    ------
+    IndexError
+        burst input is too large for the given data.
+    TypeError
+        burst was not either a string or an integer.
+
+    Returns
+    -------
+    int
+        Index 
+
+    """
+    if np.issubdtype(type(burst), np.integer) :
+        if burst >= len(model.parent.index):
+            raise IndexError(f'Burst out of range for model with {len(model.parent.index)} bursts, and given {burst}')
+        return burst
+    elif isinstance(burst, str):
+        state_num = (model.burst_state_counts != 0).sum(axis=0)
+        max_state = state_num.max() == state_num
+        trans_num = model.burst_dwell_num
+        max_trans = trans_num.max() == trans_num
+        if burst.lower() == 'states':
+            return np.argmax(trans_num[max_state])
+        elif burst.lower() == 'transitions':
+            return np.argmax(state_num[max_trans])
+        elif burst.lower() == 'longest':
+            return np.argmax([t[-1]-t[1] for t in model.parent.parent.times])
+        elif burst.lower() == 'photons':
+            return np.argmax([idx.shape[0] for idx in model.parent.index])
+        else:
+            return 0
+    else:
+        raise TypeError(f"burst must be integer, 'states' or 'transitions', got {type(burst)}")
+
+
+@_useideal
+def plot_burst_path(model, burst, param='E', ax=None, state_color=None, linewidth=None, **kwargs):
+    """
+    Plot the state trajectory of a burst in a model.
+
+    Parameters
+    ----------
+    model : H2MM_result
+        The :class:`H2MM_result <burstH2MM.BurstData.H2MM_result>` object from which 
+        to plot the state path of the specified
+        burst.
+    burst : int
+        Index of the burst.
+    param : str, optional
+        Name of the parameter to use as the parameter value to plot for each state. 
+        The default is 'E'.
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    state_color : 1-D array-like, optional
+        Color of lines for each state. The default is None.
+    linewidth : 1-D array-like, optional
+        Width of each state. The default is None.
+    **kwargs : dict
+        kwargs passed to maptlotlib.collections.LineCollection.
+
+    Returns
+    -------
+    matplotlib.collections.LineCollections
+        The line collection added to the axes.
+    l   
+    """
+    burst = _find_burst(model, burst)
+    if state_color is None:
+        state_color = ['b' for _ in range(model.nstate+1)]
+    elif len(state_color) == model.nstate:
+        state_color += ('grey',)
+    ax = _check_ax(ax)
+    times, path = model.parent.parent.times[burst], model.path[burst]
+    times = (times - times[0]) * model.parent.parent.data.clk_p*1e3
+    # get locations of transitions
+    tloc = model.trans_locs[burst]
+    tlocb, tloce = tloc[:-1], tloc[1:] - 1
+    tms_b, tms_e, pth = times[tlocb], times[tloce], path[tlocb]
+    pth_e = getattr(model, param)[pth]
+    # build path array
+    linepath = np.empty((2*tlocb.shape[0],2,2), dtype=float)
+    with np.nditer([tms_b, tms_e, pth_e], flags=['f_index']) as idx:
+        for xb, xe, y in idx:
+            linepath[2*idx.index, 0, :] = xb, y
+            linepath[2*idx.index, 1, :] = xe, y
+            linepath[2*idx.index+1, 0, :] = xe, y
+            linepath[2*idx.index-1, 1, :] = xb, y
+    linepath = linepath[:-1]
+    pthc = np.array([pth, np.ones(pth.shape, dtype=int)*model.nstate]).astype(int).T.reshape(-1)[:-1]
+    clr = [state_color[i] for i in pthc]
+    lc = LineCollection(linepath, color=clr, linewidth=linewidth, **kwargs)
+    ax.add_artist(lc)
+    ax.set_xlim((times[0], times[1]))
+    return lc
+
+
+def _stream_color_map(stream_map, index_red, streams, idx_keep, index_keep, name, exclude, kwargs, nonefill):
+    """
+    Build colors input to LineCollection from inputs
+
+    Parameters
+    ----------
+    stream_map : TYPE
         DESCRIPTION.
+    index_red : TYPE
+        DESCRIPTION.
+    streams : TYPE
+        DESCRIPTION.
+    idx_keep : TYPE
+        DESCRIPTION.
+    index_keep : TYPE
+        DESCRIPTION.
+    name : TYPE
+        DESCRIPTION.
+    exclude : TYPE
+        DESCRIPTION.
+    kwargs : TYPE
+        DESCRIPTION.
+    nonefill : TYPE
+        DESCRIPTION.
+
+    Raises
+    ------
+    ValueError
+        DESCRIPTION.
+    TypeError
+        DESCRIPTION.
+
+    Returns
+    -------
+    colors : list
+        List of colors for LineCollection.
+
+    """
+    if stream_map is not None:
+        if isinstance(stream_map, dict):
+            if all(isinstance(key, frb.Ph_sel) for key in stream_map.keys()):
+                sel = {i:stream_map[streams[np.argwhere([i in idx for idx in index_keep])[0,0]]] for i in idx_keep}
+                colors = [sel[i] for i in index_red]
+            elif all(np.issubdtype(type(key), np.integer) for key in stream_map.keys()):
+                colors = [stream_map[i] for i in index_red]
+            else:
+                raise ValueError(f"Incompatible input to {name}, must be dict with keys of type frebtursts.Ph_sel or int")
+        elif isinstance(stream_map, np.ndarray):
+            if len(stream_map) != idx_keep.shape[0]:
+                raise ValueError(f"Incompatible size for {name}")
+            colors = [stream_map[i] for i in index_red]
+        else:
+            raise TypeError(f"{name} must be dict, numpy array or None, got {type(stream_map)}")
+        if any(ex in kwargs for ex in exclude):
+            warnings.warn(f"Specifying {name} will override any argumnets in {exclude} from being passed to ax.scatter")
+    elif stream_map is None:
+        if any(ex in kwargs for ex in exclude):
+            for ex in exclude:
+                if ex in kwargs:
+                    colors = kwargs.pop(ex)
+                    break
+        else:
+            colors = index_red if nonefill else None
+            
+    return colors
+
+def plot_burst_index(data, burst, ax=None, colapse_div=False, streams=None, 
+                     stream_pos=None, stream_color=None, rng=None, invert=False, 
+                     tick_labels=None, stream_edge=None, **kwargs):
+    """
+    Plot indexes of a given burst
+
+    Parameters
+    ----------
+    data : H2MM_list or BurstData
+        Parent data object, either :class:`H2MM_list <burstH2MM.BurstSort.H2MM_list>` 
+        or :class:`BurstData <burstH2MM.BurstSort.BurstData>`, if the later will 
+        use non-divisor models indexes, if the former, then will divide streams by 
+        the divisor scheme used.
+    burst : int
+        Which burst to plot.
+    ax : matplotlib.axes or None, optional
+        The axes where the plot will be placed. The default is None.
+    colapse_div : bool, optional
+        If using a divisor scheme, whether or not to transform into the base 
+        photon streams without divisors. The default is False.
+    streams : list[fretbursts.Ph_sel], optional
+        Which streams to plot, if None will use all streams in input data. 
+        The default is None.
+    stream_pos : dict or numpy.ndarray, optional
+        Dictionary of {stream:position} identifying the y location for each photon
+        index. The default is None.
+    stream_color : dict or array-like, optional
+        Colors for each index. The default is None.
+    rng : array-like, optional
+        If stream_pos not specified, the range over which the indexes will be
+        distributed. The default is None.
+    invert : bool, optional
+        If True, then indexes plotted from top to bottom, if False, first indexes 
+        plotted from bottom to top. The default is False.
+    tick_labels : bool, dict, optional
+        Whether or not to display tick labels on y-axis, provided as dictionary:
+            {stream:label} where stream is either fretbursts.Ph_sel or int, and
+            label is str. The default is None.
+    stream_edge : dict or array-like, optional
+        Edge-colors for each index. The default is None.
+    **kwargs : dict
+        Kwargs passed to ax.scatter() .
+
+    Raises
+    ------
+    ValueError
+        Invalid values in one or more kwargs
+    TypeError
+        Incorrect type for one or more kwargs.
+
+    Returns
+    -------
+    ret : matplotlib.collections.PathCollection
+        Result of ax.scatter for plotting photons.
+
+    """
+    if streams is None:
+        streams = data.parent.ph_streams
+    if stream_pos is not None and rng is not None:
+        raise ValueError("Cannot specify both stream_pos and rng keyword arguments at the same time")
+    elif isinstance(stream_pos, dict):
+        # check that keys of stream_pos are correct
+        if all(isinstance(key, frb.Ph_sel) for key in stream_pos.keys()):
+            sel_dict = True
+        elif all(np.issubdtype(type(key), np.integer) for key in stream_pos.keys()):
+            sel_dict = False
+        else:
+            raise ValueError("Invalid values for stream_pos keys")
+    elif isinstance(stream_pos, np.ndarray):
+        pos = stream_pos
+    elif rng is None and stream_pos is None:
+        rng = (0.0, 1.0)
+
+    ax = _check_ax(ax)
+    times, index = data.parent.times[burst], data.index[burst]
+
+    # set the input data to H2MM_list
+    if isinstance(data, BurstSort.BurstData):
+        data = data.models
+    elif isinstance(data, BurstSort.H2MM_result):
+        data = data.parent
+    times = (times - times[0]) * data.parent.data.clk_p * 1e3
+    # find which indices will be used
+    index_all = np.arange(data.ndet)
+    index_keep = [index_all[data._get_stream_slc(sel)] for sel in streams]
+    idx_keep = np.concatenate(index_keep)
+    # remove unused indexes and if colapse_div, reduce to base streams
+    if colapse_div:
+        sz = len(streams) + 1
+        mask = np.array([i in idx_keep for i in index])
+        dmap = dict()
+        for i, div in enumerate(index_keep):
+            dmap.update({j:i for j in div})
+        times = times[mask]
+        index = index[mask]
+        index_red = np.array([dmap[i] for i in index])
+    else:
+        sz = idx_keep.size + 1
+        mask = np.array([i in idx_keep for i in index])
+        times = times[mask]
+        index_red = index[mask]
+    if stream_pos is None or isinstance(stream_pos, np.ndarray):
+        if stream_pos is None:
+            pos = np.array([i / sz for i in range(1,sz)])
+            if invert:
+                pos = 1 - pos
+            pos += rng[0]
+            pos *= rng[1] - rng[0]
+        else:
+            pos = stream_pos
+        index_pos = pos[index_red]
+    else:
+        if sel_dict:
+            index_pos = np.array([stream_pos[i] for i in index_red])
+        else:
+            index_pos = np.array([stream_pos[i] for i in index_red])
+    colors = _stream_color_map(stream_color, index_red, streams, idx_keep, index_keep, 
+                               'stream_color', ('c', 'color'), kwargs, True)
+    edges = _stream_color_map(stream_edge, index_red, streams, idx_keep, index_keep, 
+                              'stream_edge', ('ec', 'edgecolor'), kwargs, False)
+    ret = ax.scatter(times, index_pos, c=colors, ec=edges,**kwargs)
+    if tick_labels is True:
+        if colapse_div:
+            labels = [str(ph_sel) for ph_sel in streams]
+        else:
+            labels = list(chain.from_iterable((tick_labels[sel] for _ in idx) for sel, idx in zip(streams, index_keep)))
+    elif isinstance(tick_labels, dict):
+        if all(isinstance(key, frb.Ph_sel) for key in tick_labels.keys()):
+            if colapse_div:
+                labels = [tick_labels[ph_sel] for ph_sel in streams]
+            else:
+                labels = list(chain.from_iterable((tick_labels[sel] for _ in idx) for sel, idx in zip(streams, index_keep)))
+        elif all(np.issubdtype(type(key), np.integer) for key in tick_labels.keys()):
+            labels = [tick_labels[i] for i in idx_keep]
+    elif tick_labels not in (None, False):
+        raise TypeError(f"tick_labels must be None, bool, or dictionary of fretbursts.Ph_sel or int, got {type(tick_labels)}")
+    if tick_labels not in (None, False):
+        ax.set_yticks(pos)
+        ax.set_yticklabels(labels)
+    return ret
+
+
+__stream_color = {frb.Ph_sel(Dex='Dem'):'g', frb.Ph_sel(Dex='Aem'):'r', frb.Ph_sel(Aex='Aem'):'purple'}
+
+@_useideal
+def plot_burstjoin(model, burst, ax=None, add_corrections=False, state_color=None,
+                   stream_color=None):
+    """
+    Wrapper function plots a burst with E, S paths and burst photons.
+
+    Parameters
+    ----------
+    model : H2MM_result
+        The :class:`H2MM_result <burstH2MM.BurstData.H2MM_result>` object from 
+        which to plot the state path of the specified
+        burst.
+    burst : int or str
+        Index of the burst, or one of {'states', 'transitions'} to find the burst
+        with either the most states, or transitions automatically.
+    add_corrections : bool, optional
+        Plot correct E/S values or raw. The default is False.
+    state_color : 1-D array-like, optional
+        Color of lines for each state. The default is None.
+    stream_color : dict, optional
+        Color for each stream, given as dict {stream:color} where stream is 
+        fretbursts.Ph_sel and color is a matplotlib color specification. 
+        The default is None.
+
+    Returns
+    -------
+    None.
 
     """
     ax = _check_ax(ax)
-    times, path = model.parent.parent.times[burst], model.path[burst]
-    times = (times - times[0])*model.parent.parent.data.clk_p * 1e3 # set 0 to beginning of burst
-    path = getattr(model, param)[path]
-    tloc = model.trans_locs[burst]
-    time_beg, path_beg = times[tloc[:-1]], path[tloc[:-1]] # isolate beginning transition paths
-    time_end, path_end = times[tloc[1:]-1], path[tloc[1:]-3] # isolate ending transition points
-    time_p = np.array([time_beg, time_end]).T.reshape(-1) # join begin and end points, and reshape to alternate
-    path_p = np.array([path_beg, path_end]).T.reshape(-1)
-    points = np.array([time_p, path_p]).T.reshape(1,-1,2) # joint time and path and reshape to alternate
-    lc = LineCollection(points, color=color, linewidth=linewidth)
-    ax.add_artist(lc)
-    return lc
-    
+    burst = _find_burst(model, burst)
+    E, S = ('E_corr', 'S_corr') if add_corrections else ('E', 'S')
+    if model._hasE:
+        axE = ax.twinx()
+        plot_burst_path(model, burst, ax=axE, param=E, state_color=state_color)
+        Elim = [-1.0, 1.0] if model._hasS else [0.0, 1.0]
+        axE.set_ylim(Elim)
+        axE.yaxis.set_ticks_position('left')
+        ticks = axE.get_yticks()
+        ticks = ticks[(ticks > 0.0)* (ticks < 1.0)]
+        axE.set_yticks(ticks)
+        axE.set_ylabel('E')
+        axE.yaxis.set_label_coords(-0.15, 0.5, transform=axE.get_yaxis_transform())
+    if model._hasS:
+        axS = ax.twinx()
+        plot_burst_path(model, burst, ax=axS, param=S, state_color=state_color)
+        Slim = [0.0, 2.0] if model._hasE else [0.0, 1.0]
+        axS.set_ylim(Slim)
+        axS.yaxis.set_ticks_position('left')
+        ticks = axS.get_yticks()
+        ticks = ticks[(ticks > 0.0)* (ticks < 1.0)]
+        axS.set_yticks(ticks)
+        axS.set_ylabel('S')
+        axS.yaxis.set_label_coords(-0.15, 0.5, transform=axS.get_yaxis_transform())
+    if stream_color is None:
+        stream_color = {sel:__stream_color[sel] if sel in __stream_color else 'b' for sel in model.parent.parent.ph_streams}
+    plot_burst_index(model.parent, burst, ax=ax, colapse_div=True, 
+                     stream_color=stream_color, invert=True, tick_labels=True)
+    ax.yaxis.set_ticks_position('right')
+    ax.set_ylim([0,1])

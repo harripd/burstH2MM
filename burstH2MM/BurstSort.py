@@ -845,10 +845,12 @@ class BurstData:
     
     @property
     def _hasE(self):
+        """Whether the object supports E"""
         return frb.Ph_sel(Dex='Dem') in self.ph_streams and frb.Ph_sel(Dex='Aem') in self.ph_streams
     
     @property
     def _hasS(self):
+        """Whether the object supports S"""
         return self._hasE and frb.Ph_sel(Aex='Aem') in self.ph_streams
     
     @property
@@ -869,7 +871,7 @@ class BurstData:
             if self._hasS:
                 warnings.warn("Setting single threshold for donor and acceptor excitation will result in aberant mean nanotimes in the AexAem channel")
             irf_thresh = np.array([thresh for _ in range(self.__nstream)])
-        elif type(thresh) in {list, tuple} and len(thresh) == len(self.ph_streams):
+        elif type(thresh) in (list, tuple) and len(thresh) == len(self.ph_streams):
             irf_thresh = np.array(thresh)
         elif type(thresh) == np.ndarray and thresh.ndim == 1 and thresh.shape[0] == self.__nstream:
             irf_thresh = thresh
@@ -881,6 +883,10 @@ class BurstData:
             for opt in h2_list.opts:
                 if hasattr(opt, "_dwell_nano_mean"):
                     opt._dwell_nano_mean = opt._full_dwell_nano_mean()
+                if hasattr(opt, '_state_nano_mean'):
+                    opt._state_nano_mean = opt._full_state_nano_mean()
+                if hasattr(opt, "_state_nano_mean_std"):
+                    _, opt._state_nano_mean_err, opt._state_nano_mean_std = opt._full_state_nano_mean_err()
     
     @property
     def data(self):
@@ -1102,12 +1108,15 @@ def find_ideal(model_list, conv_crit, thresh=None, auto_set=False):
         ideal = 0
     return ideal
 
-def _dwell_weighted_avg(data, weights, states, ph_min, exclude_beg):
-    nstate = states.max() + 1
-    masks = [(states==s) * (weights > ph_min) for s in range(nstate)]
-    avg = np.array([np.average(data[mask], weights=weights[mask]) for mask in masks])
-    std = np.array([np.average((data[mask] - avg[s])**2, weights=weights[mask]) for s, mask in enumerate(masks)])
-    err = std / np.sqrt(np.array([(mask).sum() for mask in masks]))
+
+def _weighted_avg(data, weights, states, mask, nstate):
+    mask = mask * ~np.isnan(data)
+    data, weights, states = data[mask], weights[mask], states[mask]
+    masks = [states == s for s in range(nstate)]
+    sums = np.sqrt(np.array([m.sum() for m in masks]))
+    avg = np.array([np.average(data[m], weights=weights[m]) for m in masks])
+    std = np.array([np.average((data[m] - avg[s])**2, weights=weights[m]) for s, m in enumerate(masks)])
+    err = std / sums
     return avg, std, err
 
 
@@ -1162,10 +1171,12 @@ class H2MM_list:
     
     @property
     def _hasE(self):
+        """Whether the object supports E"""
         return self.parent._hasE
     
     @property
     def _hasS(self):
+        """Whether the object supports S"""
         return self.parent._hasS
     
     @property
@@ -1235,6 +1246,61 @@ class H2MM_list:
     def div_map(self):
         """The indicies in the model where indices change stream"""
         return self.__div_map
+    
+    def _get_stream_slc(self, ph_stream):
+        if ph_stream not in self.parent.ph_streams:
+            raise AttributeError(f"Parent BurstData must inlcued {str(ph_stream)} stream")
+        loc = np.argwhere([ph_stream == ph_st for ph_st in self.parent.ph_streams])[0,0]
+        return slice(self.div_map[loc], self.div_map[loc+1])
+    
+    @property
+    def _DexDem_slc(self):
+        return self._get_stream_slc(frb.Ph_sel(Dex='Dem'))
+    
+    @property 
+    def _DexAem_slc(self):
+        return self._get_stream_slc(frb.Ph_sel(Dex='Aem'))
+        
+    @property 
+    def _AexAem_slc(self):
+        return self._get_stream_slc(frb.Ph_sel(Aex='Aem'))
+    
+    def _DexDem_model(self, model):
+        return model.obs[:,self._DexDem_slc].sum(axis=1)
+    
+    def _DexAem_model(self, model):
+        return model.obs[:,self._DexAem_slc].sum(axis=1)
+    
+    def _AexAem_model(self, model):
+        return model.obs[:, self._AexAem_slc].sum(axis=1)
+    
+    def _Dex_model(self, model):
+        return self._DexDem_model(model) + self._DexAem_model(model)
+    
+    def _E_from_model(self, model):
+        return self._DexAem_model(model) / self._Dex_model(model)
+    
+    def _S_from_model(self, model):
+        return self._Dex_model(model) / (self._Dex_model(model) + self._AexAem_model(model))
+    
+    def _F_fret_model(self, model):
+        F_fret =  self._DexAem_model(model) - (self.parent.data.leakage * self._DexDem_model(model))
+        if self._hasS:
+            F_fret -= self.parent.data.dir_ex * self._AexAem_model(model)
+        return F_fret
+    
+    def _F_dex_model(self, model):
+        return self._F_fret_model(model) + (self.parent.data.gamma * self._DexDem_model(model))
+    
+    def _E_from_model_corr(self, model):
+        """The gamma corrected FRET efficiency of each state in the model"""
+        F_fret = self._F_fret_model(model)
+        return F_fret / (F_fret + (self.parent.data.gamma * self._DexDem_model(model)))
+    
+    def _S_from_model_corr(self, model):
+        """The gamma/beta corrected stoichiometry of each state in the model"""
+        F_dex = self._F_dex_model(model)
+        return F_dex / ((self._AexAem_model(model) / self.parent.data.beta) + F_dex)
     
     @property
     def dwell_params(self):
@@ -1676,6 +1742,8 @@ class H2MM_result:
                     "_dwell_state", "_dwell_dur", "_dwell_ph_counts", "_dwell_ph_counts_bg",
                     "_dwell_E", "_dwell_S", "_dwell_E_corr", "_dwell_S_corr",
                     "_dwell_nano_mean", "_dwell_ph_counts_bg", "_nanohist", "_burst_state_counts")
+    #: tuple of state-based parameters derived from dwell based parameters
+    state_params = ('_state_nano_mean', '_state_nano_mean_std', '_state_nano_mean_err')
     #: dictionary of dwell parameters as keys, and values the type of plot to use in scatter/histogram plotting
     dwell_params = {"dwell_pos":"bar" , "dwell_state":"bar", "dwell_dur":"ratio",
                     "dwell_E":"ratio", "dwell_S":"ratio", 
@@ -1683,8 +1751,10 @@ class H2MM_result:
                     "dwell_nano_mean":"stream", 
                     "dwell_ph_counts":"stream", "dwell_ph_counts_bg":"stream"}
     #: dictionary of parameters as keys and axis labels as values
-    param_labels = {"dwell_pos":"dwell position", "dwell_state":"state", "dwell_dur":"ms",
-                   "dwell_E":"E$^{raw}$", "dwell_S":"S$^{raw}$",
+    param_labels = {"trans":r"transition rate ($s^{-1}$)", "E":r"E$_{raw}$", "S":r"S$_{raw}$",
+                    "E_corr":"E", "S_corr":"S",
+                    "dwell_pos":"dwell position", "dwell_state":"state", "dwell_dur":"ms",
+                   "dwell_E":"E$_{raw}$", "dwell_S":"S$_{raw}$",
                    "dwell_E_corr":"E", "dwell_S_corr":"S", 
                    "dwell_nano_mean":"ns", 
                    "dwell_ph_counts":"counts", "dwell_ph_counts_bg":"counts"}
@@ -1709,6 +1779,9 @@ class H2MM_result:
         self.path_bic = pbic
         #: loglikelihood of path of each burst
         self.ll_arr = ll_arr
+        #: organizes bootstrap uncertainty
+        self.bootstrap_err = None
+        #: organizes loglikelihood uncertainty for all model parameters
         self.loglik_err = ModelError.Loglik_Error(self)
         if self.parent.parent.nanos is not None:
             self._conf_thresh = 0.0
@@ -1752,39 +1825,30 @@ class H2MM_result:
     
     @property
     def _DexDem_slc(self):
-        if frb.Ph_sel(Dex='Dem') not in self.parent.parent.ph_streams:
-            raise AttributeError("Parent BurstData must include DexDem stream")
-        Ds = np.argwhere([ph_stream == frb.Ph_sel(Dex='Dem') for ph_stream in self.parent.parent.ph_streams])[0,0]
-        return slice(self.parent.div_map[Ds],self.parent.div_map[Ds+1])
+        return self.parent._DexDem_slc
     
     @property 
     def _DexAem_slc(self):
-        if frb.Ph_sel(Dex='Aem') not in self.parent.parent.ph_streams:
-            raise AttributeError("Parent BurstData must include DexAem stream")
-        As = np.argwhere([ph_stream == frb.Ph_sel(Dex='Aem') for ph_stream in self.parent.parent.ph_streams])[0,0]
-        return slice(self.parent.div_map[As],self.parent.div_map[As+1])
+        return self.parent._DexAem_slc
     
     @property 
     def _AexAem_slc(self):
-        As = np.argwhere([ph_stream == frb.Ph_sel(Aex='Aem') for ph_stream in self.parent.parent.ph_streams])[0,0]
-        if frb.Ph_sel(Aex='Aem') not in self.parent.parent.ph_streams:
-            raise AttributeError("Parent BurstData must include AexAem stream")
-        return slice(self.parent.div_map[As],self.parent.div_map[As+1])
+        return self.parent._AexAem_slc
     
     @property
     def _DexDem(self):
         """The probability of DexDem from emmision probability matrix (sum of all DexDem streams)"""
-        return self.model.obs[:,self._DexDem_slc].sum(axis=1)
+        return self.parent._DexDem_model(self.model)
     
     @property 
     def _DexAem(self):
         """The probability of DexAem from emmision probability matrix (sum of all DexAem streams)"""
-        return self.model.obs[:,self._DexAem_slc].sum(axis=1)
+        return self.parent._DexAem_model(self.model)
     
     @property 
     def _AexAem(self):
         """The probability of AexAem from emmision probability matrix (sum of all AexAem streams)"""
-        return self.model.obs[:,self._AexAem_slc].sum(axis=1)
+        return self.parent._AexAem_model(self.model)
     
     @property
     def ph_streams(self):
@@ -1792,10 +1856,12 @@ class H2MM_result:
     
     @property
     def _hasE(self):
+        """Whether the object supports E"""
         return self.parent._hasE
     
     @property
     def _hasS(self):
+        """Whether the object supports S"""
         return self.parent._hasS
     
     def bootstrap_eval(self, subsets=10):
@@ -1806,8 +1872,8 @@ class H2MM_result:
         error on that parameter value.
         
         This creates the :attr:`H2MM_result.bootstrap_err`, which makes the 
-        :attr:`H2MM_result.E_err_bs`, :attr:`H2MM_result.S_err_bs`, and
-        :attr:`H2MM_result.trans_err_bs` properties available. 
+        :attr:`H2MM_result.E_std_bs`, :attr:`H2MM_result.S_std_bs`, and
+        :attr:`H2MM_result.trans_std_bs` properties available. 
         
         
         .. warning::
@@ -1836,24 +1902,24 @@ class H2MM_result:
         """
         #: :class:`ModelError.Booststrap_Error` object storying error values, used by `_bs` properties.
         self.bootstrap_err = ModelError.Bootstrap_Error.model_eval(self, subsets=subsets)
-        return tuple(getattr(self.bootstrap_err, attr) for attr in ('trans', 'E', 'S') if hasattr(self.bootstrap_err, attr))
+        return tuple(getattr(self.bootstrap_err, attr) for attr in ('trans_std', 'E_std', 'S_std') if hasattr(self.bootstrap_err, attr))
             
     @property
     def E(self):
         """The FRET efficiency of each state in the model"""
-        return self._DexAem / (self._DexDem + self._DexAem)
+        return self.parent._E_from_model(self.model)
     
     @property
-    def E_err_bs(self):
+    def E_std_bs(self):
         """
         Error in FRET efficiency values as calcualted by the bootstrap method.
         Only accesible after :meth:`H2MM_result.bootstrap_eval` has been run.
         """
-        if not hasattr(self, 'bootstrap_err'):
+        if self.bootstrap_err is None:
             raise UnboundLocalError("This value has not been calculated yet,"
                                     " use 'bootstrap_eval' method to calculate, "
                                     "WARNGING this method may take a while")
-        return self.bootstrap_err.E        
+        return self.bootstrap_err.E_std
     
     @property
     def E_err_ll(self):
@@ -1862,27 +1928,24 @@ class H2MM_result:
     @property 
     def E_corr(self):
         """The gamma corrected FRET efficiency of each state in the model"""
-        F_fret = self._DexAem - (self.parent.parent.data.leakage * self._DexDem)
-        if self._hasS:
-            F_fret -= self.parent.parent.data.dir_ex * self._AexAem
-        return F_fret / (F_fret + (self.parent.parent.data.gamma * self._DexDem))
+        return self.parent._E_from_model_corr(self.model)
     
     @property
     def S(self):
         """The stoichiometry of each state in the model"""
-        return (self._DexDem + self._DexAem) / (self._DexDem + self._DexAem + self._AexAem)
+        return self.parent._S_from_model(self.model)
     
     @property
-    def S_err_bs(self):
+    def S_std_bs(self):
         """
         Error in stoichiometry values as calcualted by the bootstrap method.
         Only accesible after :meth:`H2MM_result.bootstrap_eval` has been run.
         """
-        if not hasattr(self, 'bootstrap_err'):
+        if self.bootstrap_err is None:
             raise UnboundLocalError("This value has not been calculated yet,"
                                     " use 'bootstrap_eval' method to calculate, "
                                     "WARNGING this method may take a while")
-        return self.bootstrap_err.S
+        return self.bootstrap_err.S_std
     
     @property
     def S_err_ll(self):
@@ -1891,9 +1954,7 @@ class H2MM_result:
     @property 
     def S_corr(self):
         """The gamma/beta corrected stoichiometry of each state in the model"""
-        F_fret = self._DexAem - (self.parent.parent.data.leakage * self._DexDem)- self.parent.parent.data.dir_ex * self._AexAem
-        F_dex = F_fret + (self.parent.parent.data.gamma * self._DexDem)
-        return F_dex / ((self._AexAem / self.parent.parent.data.beta) + F_dex)
+        return self.parent._S_from_model_corr(self.model)
     
     @property
     def trans(self):
@@ -1901,16 +1962,16 @@ class H2MM_result:
         return self.model.trans / self.parent.parent.data.clk_p
     
     @property
-    def trans_err_bs(self):
+    def trans_std_bs(self):
         """
         Error in transition rate values as calcualted by the bootstrap method.
         Only accesible after :meth:`H2MM_result.bootstrap_eval` has been run.
         """
-        if not hasattr(self, 'bootstrap_err'):
+        if self.bootstrap_err is None:
             raise UnboundLocalError("This value has not been calculated yet,"
                                     " use 'bootstrap_eval' method to calculate, "
                                     "WARNGING this method may take a while")
-        return self.bootstrap_err.trans
+        return self.bootstrap_err.trans_std
     
     @property
     def trans_err_low_ll(self):
@@ -2172,18 +2233,74 @@ class H2MM_result:
             warnings.warn("IRF threshold was set automatically, recommend manually setting threshold with irf_thresh")
         return self._dwell_nano_mean
     
+    @property
+    def state_nano_mean(self):
+        """Mean nanotime of states based on dwell_nano_mean, based on :attr:`BurstSort.H2MM_result.nanohist`"""
+        if not hasattr(self, '_state_nano_mean'):
+            self._state_nano_mean = self._full_state_nano_mean()
+        if not self.parent.parent._irf_thresh_set:
+            warnings.warn("IRF threshold was set automatically, recommend manually setting threshold with irf_thresh")
+        return self._state_nano_mean.view(np.ndarray)
+    
+    @property
+    def state_nano_mean_std(self):
+        """Weighted (by number of photons) standard deviation of mean nanotime of dwells by state"""
+        if not hasattr(self, "_state_nano_mean_std"):
+            _, self._state_nano_mean_std, self._state_nano_mean_err = self._full_state_nano_mean_err()
+        return self._state_nanomean_std
+    
+    @property
+    def state_nano_mean_err(self):
+        """Weighted (by number of photons) standard deviation of mean nanotime of dwells by state"""
+        if not hasattr(self, "_state_nano_mean_std"):
+            _, self._state_nano_mean_std, self._state_nano_mean_err = self._full_state_nano_mean_err()
+        return self._state_nanomean_err
+
     def _full_dwell_nano_mean(self):
         """
         (Re)Calcualte the mean nanotime of each stream and dwell
 
         Returns
         -------
-        nanomean: 2D numpy.ndarray
+        nanomean: 3D numpy.ndarray
             The mean nanotime of each stream and dwell, organized [stream, dwell]
 
         """
         return np.array([calc_dwell_nanomean(self, ph_sel, irf_thresh) 
                          for ph_sel, irf_thresh in zip(self.parent.parent.ph_streams, self.parent.parent.irf_thresh)])
+    
+    def _full_state_nano_mean(self):
+        """
+        (Re)Calculate the mean nanotime of all photons in a given state.
+
+        Returns
+        -------
+        2D numpy.ma.MaskedArray
+            Mean nanotime of each state and stream, oragnized [state, stream].
+
+        """
+        return np.ma.masked_less_equal(self.dwell_nano_mean, self.parent.parent.irf_thresh[np.newaxis,:,np.newaxis], axis=2)
+    
+    def _full_state_nano_mean_err(self):
+        """
+        Calculate the mean, standard deviation and error for mean nanotimes.
+
+        Returns
+        -------
+        nano_mean : 1D numpy.array
+            Mean of the mean nanotimes per state.
+        nano_std : 1D numpy.array
+            Weighted standard deviation of the mean nanotimes per state.
+        nano_err : 1D numpy.array
+            Weighted standard error of the mean nanotimes per state.
+
+        """
+        mask = np.ones(self.dwell_state.shape, dtype=bool)
+        weights, states = self.dwell_ph_counts.sum(axis=0), self.dwell_state
+        nano_mean, nano_std, nano_err = _weighted_avg(self.dwell_nano_mean, weights, 
+                                                      states, mask, self.nstate)
+        return nano_mean, nano_std, nano_err
+        
     
     def calc_dwell_nanomean(self, ph_streams, irf_thresh):
         """
@@ -2228,44 +2345,43 @@ class H2MM_result:
         """
         index_name = [f'state_{s}' for s in range(self.model.nstate)]
         rpr_dict = dict()
+        weights = self.dwell_ph_counts.sum(axis=0)
+        mask = weights > ph_min
+        if exclude_beg:
+            mask *= self.dwell_pos != 2
+        states = self.dwell_state
         if self._hasE:
             rpr_dict.update(E_raw=self.E, E_corr=self.E_corr)
-            E_v, E_v_s, E_v_e = _dwell_weighted_avg(self.dwell_E, 
-                                                    self.dwell_ph_counts.sum(axis=0), 
-                                                    self.dwell_state, ph_min, exclude_beg)
+            E_v, E_v_s, E_v_e = _weighted_avg(self.dwell_E, weights, states, mask, self.nstate)
             rpr_dict.update(E_vit_raw=E_v, E_vit_raw_err=E_v_e)
-            E_v_c, E_v_s_c, E_v_e_c = _dwell_weighted_avg(self.dwell_E_corr, 
-                                                          self.dwell_ph_counts.sum(axis=0), 
-                                                          self.dwell_state, ph_min, exclude_beg)
+            E_v_c, E_v_s_c, E_v_e_c = _weighted_avg(self.dwell_E_corr, weights, states, mask, self.nstate)
+
             rpr_dict.update(E_vit_corr=E_v_c, E_vit_corr_err=E_v_e_c)
         if self._hasS:
             rpr_dict.update(S_raw=self.S, S_corr=self.S_corr)
-            S_v, S_v_s, S_v_e = _dwell_weighted_avg(self.dwell_S, 
-                                                    self.dwell_ph_counts.sum(axis=0), 
-                                                    self.dwell_state, ph_min, exclude_beg)
+            S_v, S_v_s, S_v_e = _weighted_avg(self.dwell_S, weights, states, mask, self.nstate)
             rpr_dict.update(S_vit_raw=S_v, S_vit_raw_err=S_v_e)
-            S_v_c, S_v_s_c, S_v_e_c = _dwell_weighted_avg(self.dwell_S_corr, 
-                                                          self.dwell_ph_counts.sum(axis=0), 
-                                                          self.dwell_state, ph_min, exclude_beg)
+            S_v_c, S_v_s_c, S_v_e_c = _weighted_avg(self.dwell_S_corr, weights, states, mask, self.nstate)
             rpr_dict.update(S_vit_corr=S_v, S_vit_corr_err=S_v_e_c)
         for s in range(self.model.nstate):
             rpr_dict[f'to_state_{s}'] = self.trans[:,s]
         trans_cnts, trans_vit = trans_stats(self, ph_min=ph_min)
         rpr_dict.update(**{f'to_state_{s}_dwell_cnts':trs for s, trs in enumerate(trans_cnts.T)})
         rpr_dict.update(**{f'to_state_{s}_dwell_dur':trs for s, trs in enumerate(trans_vit.T)})
-        if hasattr(self, 'boostrap_eval'):
+        if self.bootstrap_err is not None:
             if self._hasE:
-                rpr_dict.update(E_err_bs=self.E_err_bs)
+                rpr_dict.update(E_std_bs=self.E_std_bs)
             if self._hasS:
-                rpr_dict.update(S_err_bs=self.S_err_bs)
-            rpr_dict.update(**{f'to_state_{i}_err_bs':trs for i, trs in enumerate(self.trans_err_bs)})
-        if hasattr(self.loglik_err, '_E'):
+                rpr_dict.update(S_std_bs=self.S_std_bs)
+            rpr_dict.update(**{f'to_state_{i}_std_bs':trs for i, trs in enumerate(self.trans_std_bs)})
+        if np.any(~self.loglik_err._E.mask):
             rpr_dict.update(E_err_ll=self.E_err_ll)
-        if hasattr(self.loglik_err, '_S'):
-            rpr_dict.update(E_err_ll=self.S_err_ll)
-        if hasattr(self.loglik_err, '_trans'):
-            rpr_dict.update(**{f'to_state_{i}_err_low_ll':trs for i, trs in enumerate(self.trans_err_low_ll.T)})
-            rpr_dict.update(**{f'to_state_{i}_err_high_ll':trs for i, trs in enumerate(self.trans_err_high_ll.T)})
+        if np.any(~self.loglik_err._S.mask):
+            rpr_dict.update(S_err_ll=self.S_err_ll)
+        rpr_dict.update(**{f'to_state_{i}_err_low_ll':trs for i, trs in enumerate(self.trans_err_low_ll.T)  if np.any(~trs.mask)})
+        rpr_dict.update(**{f'to_state_{i}_err_high_ll':trs for i, trs in enumerate(self.trans_err_high_ll.T) if np.any(~trs.mask)})
+        if self.parent.parent.data.lifetime and self.parent.parent._irf_thresh_set:
+            rpr_dict.update(nanomean=self.state_nano_mean, nanomean_err=self.state_nano_mean_err)
         dataframe = pd.DataFrame(rpr_dict, index=index_name)
         return dataframe 
         
@@ -2293,6 +2409,6 @@ class H2MM_result:
         rpr_style = rpr_frame.style.apply(_style_trans,min_dwell_cnt=min_dwell_cnt, axis=None)
         rpr_style.format().hide([key for key in rpr_frame if key not in disp_keys], axis='columns')
         return rpr_style
-
-    def __repr__(self):
-        return self.pd_disp()
+    
+    def _repr_html_(self):
+        return self.pd_disp()._repr_html_()

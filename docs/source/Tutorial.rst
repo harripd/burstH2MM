@@ -104,15 +104,11 @@ We can also overlay the E/S values derived from the |H2MM| model over the dwell 
     bhm.dwell_ES_scatter(bdata.models[2])
     # overlay with the main values,
     bhm.scatter_ES(bdata.models[2], s=50, c="r")
+    # plot transition rate arrows
+    bhm.trans_arrow_ES(bdta.models[2])
 
 .. image:: images/dwellES.png
 
-It is also important to examine the transtion rate matrix:
-
->>> bdata.models[2].trans
-array([[1.99994147e+07, 5.31727534e+02, 5.35446778e+01],
-       [2.05278876e+02, 1.99996914e+07, 1.03279433e+02],
-       [7.90892082e+00, 1.16271415e+02, 1.99998758e+07]])
 
 .. seealso::
 
@@ -120,6 +116,17 @@ array([[1.99994147e+07, 5.31727534e+02, 5.35446778e+01],
     You can review these in the |Plotting|  module.
 
     Additionally, see the how to guide |ControlPlot|
+
+
+We can examine the model E and S values with the :attr:`H2MM_result.E` and :attr:`H2MM_result.S` as numpy arrays:
+
+>>> bdata.models[2].E, bdata.models[2].S
+(array([0.66031035, 0.15955158, 0.06730048]),
+ array([0.43073408, 0.55348988, 0.9708039 ]))
+>>> bdata.models[2].trans
+array([[1.99994147e+07, 5.31727534e+02, 5.35446778e+01],
+       [2.05278876e+02, 1.99996914e+07, 1.03279433e+02],
+       [7.90892082e+00, 1.16271415e+02, 1.99998758e+07]])
 
 burstH2MM attempts to calculate the most common dwell parameters, and to allow for intelligent selection of different sorts of dwells/bursts and do most of the heavy lifting for the user. These are nearly all stored as attributes in |H2MM_result| objects.
 See the dwell selection discussion section to see how some of these aspects work.

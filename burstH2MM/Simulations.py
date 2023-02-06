@@ -58,9 +58,9 @@ class Sim_Result(H2MM_result):
     
     Parameters
     ----------
-    parent: H2MM_model
-        The :class:`H2MM_model` object containing the model from which simulated
-        data was created
+    parent: H2MM_result
+        The :class:`H2MM_result <burstH2MM.BurstSort.H2MM_result>` object containing 
+        the model from which simulated data was created.
     sim_times: list[numpy.ndarray]
         The list of burst times of simulated data
     sim_states: list[numpy.ndarray]
@@ -102,8 +102,8 @@ def simulate(model, times=None):
 
     Parameters
     ----------
-    model : H2MM_model
-        A :class:`H2MM_model <BurstSort.H2MM_model>` object, from which a simulated
+    model : H2MM_result
+        A :class:`H2MM_result <burstH2MM.BurstSort.H2MM_result>` object, from which a simulated
         dataset will be generated.
     times : list[np.ndarray], optional
         If given, simulation will use these times instead of the arrival times
@@ -113,7 +113,7 @@ def simulate(model, times=None):
     -------
     sim_result : Sim_Result
         A data object containing the simulaetd data, behaves essentially identically
-        to a :class:`H2MM_model <BurstSort.H2MM_model>` except without photon
+        to a :class:`H2MM_result <burstH2MM.BurstSort.H2MM_result>` except without photon
         nanotimes.
 
     """

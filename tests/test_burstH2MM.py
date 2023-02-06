@@ -80,6 +80,8 @@ def alex_hmm(alex_data):
     bdata.models.calc_models()
     if alex_data.lifetime:
         bdata.irf_thresh = np.array([2355, 2305, 220])
+        bdata.auto_div(2,name='twodiv')
+        bdata.div_models['twodiv'].calc_models()
     return bdata
 
 
@@ -92,6 +94,9 @@ def test_bg_correction(alex_hmm):
     if alex_hmm.data.lifetime: # only applies to non-usALEX data, since time shift changes burst duration
         assert np.allclose(alex_hmm.models[0].dwell_E_corr, np.concatenate(alex_hmm.data.E))
         assert np.allclose(alex_hmm.models[0].dwell_S_corr, np.concatenate(alex_hmm.data.S))
+        assert np.allclose(alex_hmm.div_models['twodiv'].dwell_E_corr, np.concatenate(alex_hmm.data.E))
+        assert np.allclose(alex_hmm.div_models['twodiv'].dwell_S_corr, np.concatenate(alex_hmm.data.S))
+
 
 
 def test_ideal(alex_hmm):
@@ -114,11 +119,33 @@ def test_ideal(alex_hmm):
         with pytest.raises(AttributeError):
             alex_hmm.models.nanohist
 
+
+###
+# Error testing
+###
+
+def test_ModelSet(alex_hmm):
+    models = [h2.factory_h2mm_model(2,alex_hmm.models.ndet) for _ in range(4)]
+    modset = bhm.ModelError.ModelSet(alex_hmm.models, models)
+    assert len(modset) == 4
+    for param in ('E', 'S', 'E_corr', 'S_corr'):
+        parammat = getattr(modset, param)
+        assert np.all(parammat == parammat[0,...])
+    if alex_hmm.data.lifetime:
+        models = [h2.factory_h2mm_model(2,alex_hmm.div_models['twdiv'].ndet) for _ in range(4)]
+        modset = bhm.ModelError.ModelSet(alex_hmm.models, models)
+        assert len(modset) == 4
+        for param in ('E', 'S', 'E_corr', 'S_corr'):
+            parammat = getattr(modset, param)
+            assert np.all(parammat == parammat[0,...])
+        
+
 def test_bootstrap(alex_hmm):
     alex_hmm.models[1].bootstrap_eval()
-    hasattr(alex_hmm.models[1], 'E_err_bs')
-    hasattr(alex_hmm.models[1], 'S_err_bs')
-    hasattr(alex_hmm.models[1], 'trans_err_bs')
+    hasattr(alex_hmm.models[1], 'E_std_bs')
+    hasattr(alex_hmm.models[1], 'S_std_bs')
+    hasattr(alex_hmm.models[1], 'trans_std_bs')
+
 
 def test_ll_error(alex_hmm):
     assert np.all(alex_hmm.models[1].E_err_ll.mask), "Unset elements not masked"
@@ -133,6 +160,37 @@ def test_ll_error(alex_hmm):
     assert np.sum(alex_hmm.models[1].trans_err_high_ll.mask) == 3, "Unset elements not masked" 
     alex_hmm.models[1].loglik_err.get_trans_err(1,slice(None))
     alex_hmm.models[1].loglik_err.get_trans_err(slice(None), slice(None))
+
+
+def test_ll_covar_E(alex_hmm):
+    ESarray = np.array([0.1,0.11,0.12,0.13,0.14])
+    alex_hmm.models[1].loglik_err.covar_E(1, converged_min=1e-10)
+    alex_hmm.models[1].loglik_err.covar_E(0, rng=(0.1,0.4), steps=4)
+    assert len(alex_hmm.models[1].loglik_err.E_covar[0]) == 4
+    alex_hmm.models[1].loglik_err.covar_E(0, rng=ESarray)
+    assert len(alex_hmm.models[1].loglik_err.E_covar[0]) == ESarray.size
+    assert np.all(alex_hmm.models[1].loglik_err.E_covar[0].E[:,0] == ESarray)
+    
+    
+def test_ll_covar_S(alex_hmm):
+    ESarray = np.array([0.1,0.11,0.12,0.13,0.14])
+    alex_hmm.models[1].loglik_err.covar_S(1, converged_min=1e-10, max_iter=10)
+    alex_hmm.models[1].loglik_err.covar_S(0, rng=(0.1,0.4), steps=4, max_iter=10)
+    assert len(alex_hmm.models[1].loglik_err.S_covar[0]) == 4
+    alex_hmm.models[1].loglik_err.covar_S(0, rng=ESarray, max_iter=10)
+    assert len(alex_hmm.models[1].loglik_err.S_covar[0]) == ESarray.size
+    assert np.all(alex_hmm.models[1].loglik_err.S_covar[0].E[:,0] == ESarray)
+    
+    
+def teest_ll_covar_trans(alex_hmm):
+    trans_array = np.array([100,120,140,160,180])
+    alex_hmm.models[1].loglik_err.covar_trans(0,1, converged_min=1e-10, max_iter=10)
+    alex_hmm.models[1].loglik_err.covar_trans(0,1, rng=(100,200), steps=4, converged_min=1e-10, max_iter=10)
+    assert len(alex_hmm.models[1].loglik_err.trans_covar[1,0]) == 4
+    alex_hmm.models[1].loglik_err.covar_trans(1,0, rng=trans_array, max_iter=10)
+    assert len(alex_hmm.models[1].loglik_err.trans_covar[1,0]) == trans_array.size
+    assert np.all(alex_hmm.models[1].loglik_err.trans_covar[1,0].trans[:,1,0] == trans_array)
+    
     
     
 ### Smoke tests of burst plotting functions
@@ -171,6 +229,12 @@ def test_dwell_scatter(alex_hmm, func):
         func(alex_hmm.models, ax=ax, s=10, states=np.array([1,0]))
         fig, ax = plt.subplots()
         func(alex_hmm.models, ax=ax, plot_type='kde', add_corrections=True)
+        func(alex_hmm.div_models['twodiv'][2])
+        alex_hmm.div_models['twodiv'].ideal = 2
+        fig, ax = plt.subplots()
+        func(alex_hmm.div_models['twodiv'], ax=ax, s=10, states=np.array([1,0]))
+        fig, ax = plt.subplots()
+        func(alex_hmm.div_models['twodiv'], ax=ax, plot_type='kde', add_corrections=True)
     else:
         with pytest.raises(Exception):
             func(alex_hmm.models[2])

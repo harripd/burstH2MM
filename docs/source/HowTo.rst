@@ -10,6 +10,7 @@ How To Guides
     :maxdepth: 2
 
     AccessResult
+    Uncertainty
     ControlPlot
     AccessDiv
     Customization
