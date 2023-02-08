@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 import warnings
 from itertools import chain, permutations
+from collections import namedtuple
 from collections.abc import Iterable
 
 import fretbursts as frb
@@ -661,11 +662,30 @@ def make_divisors(data, ndiv, include_irf_thresh=False):
     if include_irf_thresh:
         divs = [np.concatenate([[irf], div]) for irf, div in zip(data.irf_thresh, divs)]
     return divs
-    
-    
 
 
-def calc_nanohist(model, conf_thresh=None):
+def _conf_gen(model, conf_thresh, gamma_thresh):
+    if conf_thresh is None:
+        conf_thresh = model.conf_thresh
+    if gamma_thresh is None:
+        gamma_thresh = model.gamma_thresh
+    if conf_thresh is None and gamma_thresh is None:
+        for index in model.parent.index:
+            yield np.ones(index.shape[0], dtype=bool)
+    elif conf_thresh is None:
+        for path, gamma in zip(model.path, model.gamma):
+            gam = gamma[np.arange(gamma.shape[0]), path]
+            yield gam >= gamma_thresh
+    elif gamma_thresh is None:
+        for scale in model.scale:
+            yield scale >= conf_thresh
+    else:
+        for path, gamma,scale in zip(model.path, model.gamma, model.scale):
+            gam = gamma[np.arange(gamma.shape[0]), path]
+            yield (gam >= gamma_thresh) * (scale >= conf_thresh)
+            
+            
+def calc_nanohist(model, conf_thresh=None, gamma_thresh=None):
     """
     Generate the fluorescence decay per state per stream from the model/data
 
@@ -678,7 +698,12 @@ def calc_nanohist(model, conf_thresh=None):
         in the nanotime histogram. If None, use :attr:`H2MM_result.conf_thresh`
         of model.
         The default is None
-
+    gamma_thresh : float, optional
+        The threshold of the :attr:`H2MM_result.gamma` for a photon to be included
+        in the nanotime histogram. If None, use :attr:`H2MM_result.gamma_thresh`
+        of model.
+        The default is None
+        
     Returns
     -------
     nanohist : numpy.ndarray
@@ -686,9 +711,9 @@ def calc_nanohist(model, conf_thresh=None):
         array indexed as follows: [state, stream, nanotime_bin]
 
     """
-    if conf_thresh is None:
-        conf_thresh = model.conf_thresh
-    mask = np.concatenate([scale for scale in model.scale]) >= conf_thresh
+    if not model.parent.parent.data.lifetime:
+        raise AttributeError("Parent data does not contain lifetime information")
+    mask = np.concatenate([msk for msk in _conf_gen(model, conf_thresh, gamma_thresh)])
     nanos = np.concatenate(model.parent.parent.nanos)[mask]
     stream = np.concatenate(model.parent.parent.models.index)[mask]
     state = np.concatenate(model.path)[mask]
@@ -698,7 +723,8 @@ def calc_nanohist(model, conf_thresh=None):
                          for j in range(model.model.nstate)])
     return nanohist
 
-def calc_dwell_nanomean(model, ph_streams, irf_thresh, conf_thresh=None):
+
+def calc_dwell_nanomean(model, ph_streams, irf_thresh, conf_thresh=None, gamma_thresh=None):
     """
     Calculate the mean nanotimes of dwells for a given (amalgamated) set of 
     photon streams, must define the irf_thresh to exclude the IRF
@@ -726,8 +752,6 @@ def calc_dwell_nanomean(model, ph_streams, irf_thresh, conf_thresh=None):
 
     """
     # check and reshape initial inputs
-    if conf_thresh is None:
-        conf_thresh = model.conf_thresh
     if type(ph_streams) == frb.Ph_sel:
         ph_streams = [ph_streams,]
     irf_thresh = np.atleast_1d(irf_thresh)
@@ -737,12 +761,12 @@ def calc_dwell_nanomean(model, ph_streams, irf_thresh, conf_thresh=None):
         idx[i] = np.argwhere([ph_stream == p_stream for p_stream in model.parent.parent.ph_streams])[0,0]
     # loop over bursts to calculate mean, i keeps track of dwell number
     i, dwell_nanomean = 0, np.zeros(model.dwell_state.size)
-    for nano, trans_loc, index, scale in zip(model.parent.parent.nanos, model.trans_locs, model.parent.parent.models.index, model.scale):
+    conf_mask = _conf_gen(model, conf_thresh, gamma_thresh)
+    for nano, trans_loc, index, c_mask in zip(model.parent.parent.nanos, model.trans_locs, model.parent.parent.models.index, conf_mask):
         b_mask = np.zeros(nano.size, dtype=bool)
         adj_nano = nano.copy()
-        scale_thresh = scale >= conf_thresh
         for ix, thresh in zip(idx, irf_thresh):
-            s_mask = (index == ix)*(nano > thresh)*scale_thresh
+            s_mask = (index == ix)*(nano > thresh)*c_mask
             b_mask += s_mask
             adj_nano[s_mask] -= thresh
         for start, stop in zip(trans_loc[:-1], trans_loc[1:]):
@@ -751,6 +775,62 @@ def calc_dwell_nanomean(model, ph_streams, irf_thresh, conf_thresh=None):
             i += 1
     return dwell_nanomean * model.parent.parent.data.nanotimes_params[0]['tcspc_unit'] * 1e9
     
+def _full_state_nano_mean(model):
+    """
+    (Re)Calculate the mean nanotime of all photons in a given state.
+    
+    Parameters
+    ----------
+    model : H2MM_result
+        A h2mm state-model and *Viterbi* analysis
+    
+    Returns
+    -------
+    2D numpy.ndarray
+        Mean nanotime of each state and stream, oragnized [state, stream].
+
+    """
+    if not model.parent.parent.data.lifetime:
+        raise AttributeError("Parent data does not contain lifetime information")
+    nano_clk = model.parent.parent.data.nanotimes_params[0]['tcspc_unit'] * 1e9
+    nano_mean = np.empty((model.nstate, len(model.parent.parent.ph_streams)))
+    for i in range(model.nstate):
+        for j, t in enumerate(model.parent.parent.irf_thresh):
+            nano_mean[i,j] = np.average(np.arange(1,model.nanohist.shape[2]-t+1),
+                                        weights=model.nanohist[i,j,t:]) * nano_clk
+    return nano_mean
+
+
+def _full_state_nano_mean_err(model):
+    """
+    Calculate the mean, standard deviation and error for mean nanotimes.
+
+    Parameters
+    ----------
+    model : H2MM_result
+        A h2mm state-model and *Viterbi* analysis
+    
+    Returns
+    -------
+    nano_mean : 1D numpy.array
+        Mean of the mean nanotimes per state.
+    nano_std : 1D numpy.array
+        Weighted standard deviation of the mean nanotimes per state.
+    nano_err : 1D numpy.array
+        Weighted standard error of the mean nanotimes per state.
+
+    """
+    mask = np.ones(model.dwell_state.shape, dtype=bool)
+    weights, states = model.dwell_ph_counts.sum(axis=0), model.dwell_state
+    # calculate weighted averages
+    wghtav = [_weighted_avg(dnm, weights, states, mask, model.nstate) for dnm in model.dwell_nano_mean]
+    # unpack
+    nano_mean = np.array([val[0] for val in wghtav])
+    nano_std = np.array([val[1] for val in wghtav])
+    nano_err = np.array([val[2] for val in wghtav])
+    return nano_mean, nano_std, nano_err
+
+
 
 # Object of data for analysis by H2MM, of a set of divisor streams
 class BurstData:
@@ -841,7 +921,12 @@ class BurstData:
             self.models = H2MM_list(self, index)
     
     def __getitem__(self, key):
-        return self.div_models[key]
+        if isinstance(key, int):
+            return self.models[key]
+        elif isinstance(key, str):
+            return self.div_models[key]
+        else:
+            raise KeyError(f"Keys to BurstData must be str for divisor models, or int for base optimization, got {type(key)}")
     
     @property
     def _hasE(self):
@@ -867,13 +952,15 @@ class BurstData:
     
     @irf_thresh.setter
     def irf_thresh(self, thresh):
-        if type(thresh) == int:
+        if not self.data.lifetime:
+            raise AttributeError("Parent data does not contain lifetime information")
+        if isinstance(thresh,  int):
             if self._hasS:
                 warnings.warn("Setting single threshold for donor and acceptor excitation will result in aberant mean nanotimes in the AexAem channel")
             irf_thresh = np.array([thresh for _ in range(self.__nstream)])
-        elif type(thresh) in (list, tuple) and len(thresh) == len(self.ph_streams):
+        elif isinstance(thresh, (list, tuple)) and len(thresh) == len(self.ph_streams):
             irf_thresh = np.array(thresh)
-        elif type(thresh) == np.ndarray and thresh.ndim == 1 and thresh.shape[0] == self.__nstream:
+        elif isinstance(thresh, np.ndarray) and thresh.ndim == 1 and thresh.shape[0] == self.__nstream:
             irf_thresh = thresh
         else:
             raise ValueError(f"irf threshold must be {len(self.ph_streams)} length list, tuple or numpy array, got {type(thresh)}")
@@ -881,12 +968,7 @@ class BurstData:
         # loop over all instances where the dwell nano mean has been calculated, and recalculate with new threshold
         for h2_list in chain([self.models], self.div_models.values()):
             for opt in h2_list.opts:
-                if hasattr(opt, "_dwell_nano_mean"):
-                    opt._dwell_nano_mean = opt._full_dwell_nano_mean()
-                if hasattr(opt, '_state_nano_mean'):
-                    opt._state_nano_mean = opt._full_state_nano_mean()
-                if hasattr(opt, "_state_nano_mean_std"):
-                    _, opt._state_nano_mean_err, opt._state_nano_mean_std = opt._full_state_nano_mean_err()
+                opt._reset_nano_params()
     
     @property
     def data(self):
@@ -1359,6 +1441,12 @@ class H2MM_list:
         return self.opts[self.ideal].burst_dwell_num
     
     @property
+    def burst_state_counts(self):
+        if not hasattr(self, "ideal"):
+            ValueError("Ideal model not set, cannot return dwell params")
+        return self.opts[self.ideal].burst_state_counts
+    
+    @property
     def dwell_state(self):
         """State of each dewll for the ideal model"""
         if not hasattr(self, "ideal"):
@@ -1440,8 +1528,28 @@ class H2MM_list:
         if not hasattr(self, "ideal"):
             raise ValueError("Ideal model not set, cannot return dwell params")
         return self.opts[self.ideal].dwell_nano_mean
+    @property
+    def state_nano_mean(self):
+        """Mean nanotime of states based on dwell_nano_mean, based on :attr:`BurstSort.H2MM_result.nanohist`"""
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
+        return self.opts[self.ideal].state_nano_mean
     
-    def optimize(self, model, replace=False, **kwargs):
+    @property
+    def state_nano_mean_std(self):
+        """Weighted (by number of photons) standard deviation of mean nanotime of dwells by state"""
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
+        return self.opts[self.ideal].state_nano_mean_std
+    
+    @property
+    def state_nano_mean_err(self):
+        """Weighted (by number of photons) standard deviation of mean nanotime of dwells by state"""
+        if not hasattr(self, "ideal"):
+            raise ValueError("Ideal model not set, cannot return dwell params")
+        return self.opts[self.ideal].state_nano_mean_err
+    
+    def optimize(self, model, replace=False, gamma=False, opt_array=False, **kwargs):
         """
         Optimize a model against data, and add optimized data to .opts list
 
@@ -1476,8 +1584,15 @@ class H2MM_list:
             self.opts.append(None)
         if not replace and self.opts[stid] is not None:
             raise Exception(f"Already Optimized model for {nstate} states")
-        model.optimize(self.index, self.parent.times, **kwargs)
         vkwargs = {"num_cores":kwargs["num_cores"]} if "num_cores" in kwargs else {}
+        if gamma:
+            model, gamma = model.optimize(self.index, self.parent.times, gamma=gamma, opt_array=opt_array, **kwargs)
+            vkwargs['gamma'] = gamma
+        else:
+            model = model.optimize(self.index, self.parent.times, gamma=gamma, opt_array=opt_array, **kwargs)
+        if opt_array:
+            vkwargs['opt_array'] = ModelError.ModelSet(self, model)
+            model = model[-1] if model[-1].conv_code != 7 else model[-2]
         self.opts[stid] = H2MM_result(self, model, **vkwargs)
     
     def calc_models(self, min_state=1, to_state=4, max_state=8, models=None, 
@@ -1715,6 +1830,8 @@ def _style_trans(pd_frame, min_dwell_cnt=10):
     return style_frame
 
 
+_ResetTuple = namedtuple('ResetTuple', ['attr', 'subattrs'])
+
 # class to store individual h2mm models and their associated parameters
 class H2MM_result:
     """ 
@@ -1738,12 +1855,17 @@ class H2MM_result:
 
     """
     #: tuple of parameters that include dwell or photon information- cleared by trim data
-    large_params = ("path", "scale", "_trans_locs", "_burst_dwell_num", "_dwell_pos", 
+    large_params = ("_gamma", "path", "scale", "_trans_locs", "_burst_dwell_num", "_dwell_pos", 
                     "_dwell_state", "_dwell_dur", "_dwell_ph_counts", "_dwell_ph_counts_bg",
                     "_dwell_E", "_dwell_S", "_dwell_E_corr", "_dwell_S_corr",
                     "_dwell_nano_mean", "_dwell_ph_counts_bg", "_nanohist", "_burst_state_counts")
     #: tuple of state-based parameters derived from dwell based parameters
     state_params = ('_state_nano_mean', '_state_nano_mean_std', '_state_nano_mean_err')
+    #: List of all parameters dependent on lifetime information
+    nanotime_params = (_ResetTuple('nanohist', ('_nanohist',)),
+                       _ResetTuple('dwell_nano_mean', ('_dwell_nano_mean')),
+                       _ResetTuple('state_nano_mean', ('_state_nano_mean')),
+                       _ResetTuple('state_nano_mean_std', ('_state_nano_mean_std', '_state_nano_mean_err')))
     #: dictionary of dwell parameters as keys, and values the type of plot to use in scatter/histogram plotting
     dwell_params = {"dwell_pos":"bar" , "dwell_state":"bar", "dwell_dur":"ratio",
                     "dwell_E":"ratio", "dwell_S":"ratio", 
@@ -1759,7 +1881,7 @@ class H2MM_result:
                    "dwell_nano_mean":"ns", 
                    "dwell_ph_counts":"counts", "dwell_ph_counts_bg":"counts"}
     
-    def __init__(self, parent, model, **kwargs):
+    def __init__(self, parent, model, gamma=None, **kwargs):
         path, scale, ll, icl = h2.viterbi_path(model, parent.index, parent.parent.times, 
                                                                    **kwargs)
         #: most likely state of each photon in each burst
@@ -1783,9 +1905,14 @@ class H2MM_result:
         self.bootstrap_err = None
         #: organizes loglikelihood uncertainty for all model parameters
         self.loglik_err = ModelError.Loglik_Error(self)
-        if self.parent.parent.nanos is not None:
-            self._conf_thresh = 0.0
-    
+        self._gamma_thresh = None
+        self._conf_thresh = None
+        if 'gamma' in kwargs:
+            self._gamma = kwargs['gamma']
+        if 'opt_array' in kwargs:
+            self.opt_array = kwargs['opt_array']
+        
+        
     def trim_data(self):
         """Remove photon-level arrays, conserves memory for less important models"""
         for attr in self.large_params:
@@ -1903,6 +2030,12 @@ class H2MM_result:
         #: :class:`ModelError.Booststrap_Error` object storying error values, used by `_bs` properties.
         self.bootstrap_err = ModelError.Bootstrap_Error.model_eval(self, subsets=subsets)
         return tuple(getattr(self.bootstrap_err, attr) for attr in ('trans_std', 'E_std', 'S_std') if hasattr(self.bootstrap_err, attr))
+    
+    @property
+    def gamma(self):
+        if not hasattr(self, '_gamma'):
+            _, self._gamma = h2.H2MM_arr(self.model, self.parent.index, self.parent.parent.times, gamma=True)
+        return self._gamma
             
     @property
     def E(self):
@@ -2141,8 +2274,8 @@ class H2MM_result:
             Cr = np.argwhere([ph_stream == frb.Ph_sel(Aex='Aem') 
                               for ph_stream in self.parent.parent.ph_streams])[0,0]
             D = self.dwell_ph_counts_bg[Dr,:]
-            C = self.dwell_ph_counts_bg[Cr,:]
             A = self.dwell_ph_counts_bg[Ar,:]
+            C = self.dwell_ph_counts_bg[Cr,:]
             F_fret = A - (self.parent.parent.data.leakage * D) - (C * self.parent.parent.data.dir_ex)
             F_tot = F_fret + (data.gamma * D)
             S_tot = F_tot + (C/data.beta)
@@ -2198,24 +2331,32 @@ class H2MM_result:
     @property
     def conf_thresh(self):
         """Threshhold for considering a photon nantotime in calculating dwell_nano_mean and nanohist"""
-        if not hasattr(self, "_conf_thresh"):
-            raise AttributeError("Parent fretbursts.Data object must include nanotimes")
         return self._conf_thresh
     
     @conf_thresh.setter
     def conf_thresh(self, conf_thresh):
-        if not hasattr(self, "_conf_thresh"):
-            raise AttributeError("Parent fretbursts.Data object must include nanotimes")
-        if not isinstance(conf_thresh, (float, int)):
+        if not isinstance(conf_thresh, float) and conf_thresh is not None:
             raise TypeError("Input must be single number")
-        elif conf_thresh < 0 or conf_thresh >= 1:
+        elif isinstance(conf_thresh, float) and (conf_thresh < 0 or conf_thresh > 1):
             raise ValueError("conf_thresh must be within [0, 1)")
-        self._conf_thresh = float(conf_thresh)
+        self._conf_thresh = conf_thresh
         # recalculate parameters with new threshhold
-        if hasattr(self, "_nanohist"):
-            self._nanohist = calc_nanohist(self)
-        if hasattr(self, "_dwell_nano_mean"):
-            self._dwell_nano_mean = self._full_dwell_nano_mean()
+        self._reset_nano_params()
+    
+    @property
+    def gamma_thresh(self):
+        return self._gamma_thresh
+    
+    @gamma_thresh.setter
+    def gamma_thresh(self, gamma_thresh):
+        if not isinstance(gamma_thresh, float) and gamma_thresh is not None:
+            raise TypeError("Input must be single number")
+        elif isinstance(gamma_thresh, float) and (gamma_thresh < 0 or gamma_thresh > 1):
+            raise ValueError("gamma_thresh must be within (0, 1)")
+        self._gamma_thresh = gamma_thresh
+        # recalculate parameters with new threshhold
+        self._reset_nano_params()
+
     
     @property
     def nanohist(self):
@@ -2237,37 +2378,70 @@ class H2MM_result:
     def state_nano_mean(self):
         """Mean nanotime of states based on dwell_nano_mean, based on :attr:`BurstSort.H2MM_result.nanohist`"""
         if not hasattr(self, '_state_nano_mean'):
-            self._state_nano_mean = self._full_state_nano_mean()
+            self._state_nano_mean = _full_state_nano_mean(self)
         if not self.parent.parent._irf_thresh_set:
             warnings.warn("IRF threshold was set automatically, recommend manually setting threshold with irf_thresh")
-        return self._state_nano_mean.view(np.ndarray)
+        return self._state_nano_mean
     
     @property
     def state_nano_mean_std(self):
         """Weighted (by number of photons) standard deviation of mean nanotime of dwells by state"""
         if not hasattr(self, "_state_nano_mean_std"):
             _, self._state_nano_mean_std, self._state_nano_mean_err = self._full_state_nano_mean_err()
-        return self._state_nanomean_std
+        if not self.parent.parent._irf_thresh_set:
+            warnings.warn("IRF threshold was set automatically, recommend manually setting threshold with irf_thresh")
+        return self._state_nano_mean_std
     
     @property
     def state_nano_mean_err(self):
         """Weighted (by number of photons) standard deviation of mean nanotime of dwells by state"""
         if not hasattr(self, "_state_nano_mean_std"):
             _, self._state_nano_mean_std, self._state_nano_mean_err = self._full_state_nano_mean_err()
-        return self._state_nanomean_err
+        if not self.parent.parent._irf_thresh_set:
+            warnings.warn("IRF threshold was set automatically, recommend manually setting threshold with irf_thresh")
+        return self._state_nano_mean_err
 
-    def _full_dwell_nano_mean(self):
+    def calc_dwell_nanomean(self, ph_streams, irf_thresh):
         """
-        (Re)Calcualte the mean nanotime of each stream and dwell
-
+        Generate the mean nanotimes of dwells, for given stream and IRF threshold
+    
+        Parameters
+        ----------
+        ph_streams : fretbursts.Ph_sel, or list[fretbursts.Ph_sel]
+            The photon stream(s) for which the mean dwell nanotime is to be calculated
+        irf_thresh : int or iterable of int
+            The threshold at which to include photons for calculation of mean nanotime
+            Should be set to be at the end of the IRF
+    
         Returns
         -------
-        nanomean: 3D numpy.ndarray
-            The mean nanotime of each stream and dwell, organized [stream, dwell]
-
+        dwell_nanomean : numpy.ndarray
+            Mean nanotime of the given photon stream(s) in aggregate
+            NOTE: different photon streams are not separated in calculation,
+            must be called separately per stream to calculate each mean nanotime
+    
         """
-        return np.array([calc_dwell_nanomean(self, ph_sel, irf_thresh) 
-                         for ph_sel, irf_thresh in zip(self.parent.parent.ph_streams, self.parent.parent.irf_thresh)])
+        return calc_dwell_nanomean(self, ph_streams, irf_thresh)
+    
+    def _reset_nano_params(self):
+        for param in self.nanotime_params:
+            if any(hasattr(self, subpar) for subpar in param.subattrs):
+                for subattr in param.subattrs:
+                    delattr(self, subattr)
+                getattr(self, param.attr)
+    
+    def _full_dwell_nano_mean(self):
+            """
+            (Re)Calcualte the mean nanotime of each stream and dwell
+    
+            Returns
+            -------
+            nanomean: 3D numpy.ndarray
+                The mean nanotime of each stream and dwell, organized [stream, dwell]
+    
+            """
+            return np.array([calc_dwell_nanomean(self, ph_sel, irf_thresh) 
+                             for ph_sel, irf_thresh in zip(self.parent.parent.ph_streams, self.parent.parent.irf_thresh)])
     
     def _full_state_nano_mean(self):
         """
@@ -2275,11 +2449,11 @@ class H2MM_result:
 
         Returns
         -------
-        2D numpy.ma.MaskedArray
+        2D numpy.ndarray
             Mean nanotime of each state and stream, oragnized [state, stream].
 
         """
-        return np.ma.masked_less_equal(self.dwell_nano_mean, self.parent.parent.irf_thresh[np.newaxis,:,np.newaxis], axis=2)
+        return _full_state_nano_mean(self)
     
     def _full_state_nano_mean_err(self):
         """
@@ -2295,34 +2469,7 @@ class H2MM_result:
             Weighted standard error of the mean nanotimes per state.
 
         """
-        mask = np.ones(self.dwell_state.shape, dtype=bool)
-        weights, states = self.dwell_ph_counts.sum(axis=0), self.dwell_state
-        nano_mean, nano_std, nano_err = _weighted_avg(self.dwell_nano_mean, weights, 
-                                                      states, mask, self.nstate)
-        return nano_mean, nano_std, nano_err
-        
-    
-    def calc_dwell_nanomean(self, ph_streams, irf_thresh):
-        """
-        Generate the mean nanotimes of dwells, for given stream and IRF threshold
-
-        Parameters
-        ----------
-        ph_streams : fretbursts.Ph_sel, or list[fretbursts.Ph_sel]
-            The photon stream(s) for which the mean dwell nanotime is to be calculated
-        irf_thresh : int or iterable of int
-            The threshold at which to include photons for calculation of mean nanotime
-            Should be set to be at the end of the IRF
-
-        Returns
-        -------
-        dwell_nanomean : numpy.ndarray
-            Mean nanotime of the given photon stream(s) in aggregate
-            NOTE: different photon streams are not separated in calculation,
-            must be called separately per stream to calculate each mean nanotime
-
-        """
-        return calc_dwell_nanomean(self, ph_streams, irf_thresh)
+        return _full_state_nano_mean_err(self)
     
     def stats_frame(self, ph_min=5, exclude_beg=False):
         """

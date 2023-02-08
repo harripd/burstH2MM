@@ -2311,9 +2311,13 @@ def _find_burst(model, burst):
         trans_num = model.burst_dwell_num
         max_trans = trans_num.max() == trans_num
         if burst.lower() == 'states':
-            return np.argmax(trans_num[max_state])
+            max_states = np.argwhere(max_state).reshape(-1)
+            trans_max = np.argmax(trans_num[max_state])
+            return max_states[trans_max]
         elif burst.lower() == 'transitions':
-            return np.argmax(state_num[max_trans])
+            max_transs = np.argwhere(max_trans).reshape(-1)
+            state_max = np.argmax(state_num[max_trans])
+            return max_transs[state_max]
         elif burst.lower() == 'longest':
             return np.argmax([t[-1]-t[1] for t in model.parent.parent.times])
         elif burst.lower() == 'photons':
@@ -2325,7 +2329,7 @@ def _find_burst(model, burst):
 
 
 @_useideal
-def plot_burst_path(model, burst, param='E', ax=None, state_color=None, linewidth=None, **kwargs):
+def plot_burst_path(model, burst, param='E', ax=None, state_color=None, linewidth=None, stream=None,**kwargs):
     """
     Plot the state trajectory of a burst in a model.
 
@@ -2368,6 +2372,16 @@ def plot_burst_path(model, burst, param='E', ax=None, state_color=None, linewidt
     tlocb, tloce = tloc[:-1], tloc[1:] - 1
     tms_b, tms_e, pth = times[tlocb], times[tloce], path[tlocb]
     pth_e = getattr(model, param)[pth]
+    if stream is not None and pth_e.ndim == 2:
+        if isinstance(stream, int):
+            pth_e = pth_e[:,stream]
+        elif isinstance(stream, frb.Ph_sel):
+            stream = np.argwhere([stream == ph_sel for ph_sel in model.parent.parent.ph_streams])[0,0]
+            pth_e = pth_e[:,stream]
+        else:
+            raise TypeError(f"stream must be int, or fretbursts.Ph_sel, got {type(stream)}")
+    elif stream is not None:
+        raise ValueError("stream must be None for non-stream base parameters")
     # build path array
     linepath = np.empty((2*tlocb.shape[0],2,2), dtype=float)
     with np.nditer([tms_b, tms_e, pth_e], flags=['f_index']) as idx:
@@ -2381,7 +2395,7 @@ def plot_burst_path(model, burst, param='E', ax=None, state_color=None, linewidt
     clr = [state_color[i] for i in pthc]
     lc = LineCollection(linepath, color=clr, linewidth=linewidth, **kwargs)
     ax.add_artist(lc)
-    ax.set_xlim((times[0], times[1]))
+    ax.set_xlim((times[0], times[-1]))
     return lc
 
 
@@ -2459,7 +2473,7 @@ def plot_burst_index(data, burst, ax=None, colapse_div=False, streams=None,
 
     Parameters
     ----------
-    data : H2MM_list or BurstData
+    data : H2MM_resutl, H2MM_list or BurstData
         Parent data object, either :class:`H2MM_list <burstH2MM.BurstSort.H2MM_list>` 
         or :class:`BurstData <burstH2MM.BurstSort.BurstData>`, if the later will 
         use non-divisor models indexes, if the former, then will divide streams by 
@@ -2507,6 +2521,14 @@ def plot_burst_index(data, burst, ax=None, colapse_div=False, streams=None,
         Result of ax.scatter for plotting photons.
 
     """
+    # set the input data to H2MM_list
+    if isinstance(data, BurstSort.BurstData):
+        data = data.models
+    elif isinstance(data, BurstSort.H2MM_result):
+        burst = _find_burst(data, burst)
+        data = data.parent
+    if isinstance(burst, str):
+        burst = _find_burst(data.opts[data.ideal], burst)
     if streams is None:
         streams = data.parent.ph_streams
     if stream_pos is not None and rng is not None:
@@ -2527,11 +2549,6 @@ def plot_burst_index(data, burst, ax=None, colapse_div=False, streams=None,
     ax = _check_ax(ax)
     times, index = data.parent.times[burst], data.index[burst]
 
-    # set the input data to H2MM_list
-    if isinstance(data, BurstSort.BurstData):
-        data = data.models
-    elif isinstance(data, BurstSort.H2MM_result):
-        data = data.parent
     times = (times - times[0]) * data.parent.data.clk_p * 1e3
     # find which indices will be used
     index_all = np.arange(data.ndet)
@@ -2564,7 +2581,10 @@ def plot_burst_index(data, burst, ax=None, colapse_div=False, streams=None,
         index_pos = pos[index_red]
     else:
         if sel_dict:
-            index_pos = np.array([stream_pos[i] for i in index_red])
+            pos_map = dict()
+            for idx, stream in zip(index_keep, streams):
+                pos_map.update({i:stream_pos[stream] for i in idx})
+            index_pos = np.array([pos_map[i] for i in index_red])
         else:
             index_pos = np.array([stream_pos[i] for i in index_red])
     colors = _stream_color_map(stream_color, index_red, streams, idx_keep, index_keep, 

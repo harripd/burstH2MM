@@ -94,8 +94,8 @@ def test_bg_correction(alex_hmm):
     if alex_hmm.data.lifetime: # only applies to non-usALEX data, since time shift changes burst duration
         assert np.allclose(alex_hmm.models[0].dwell_E_corr, np.concatenate(alex_hmm.data.E))
         assert np.allclose(alex_hmm.models[0].dwell_S_corr, np.concatenate(alex_hmm.data.S))
-        assert np.allclose(alex_hmm.div_models['twodiv'].dwell_E_corr, np.concatenate(alex_hmm.data.E))
-        assert np.allclose(alex_hmm.div_models['twodiv'].dwell_S_corr, np.concatenate(alex_hmm.data.S))
+        assert np.allclose(alex_hmm.div_models['twodiv'][0].dwell_E_corr, np.concatenate(alex_hmm.data.E))
+        assert np.allclose(alex_hmm.div_models['twodiv'][0].dwell_S_corr, np.concatenate(alex_hmm.data.S))
 
 
 
@@ -113,15 +113,68 @@ def test_ideal(alex_hmm):
     if alex_hmm.data.lifetime:
         assert hasattr(alex_hmm.models, 'dwell_nano_mean')
         assert hasattr(alex_hmm.models, 'nanohist')
+        assert hasattr(alex_hmm.models, 'state_nano_mean')
+        assert hasattr(alex_hmm.models, 'state_nano_mean_std')
+        assert hasattr(alex_hmm.models, 'state_nano_mean_err')
     else:
         with pytest.raises(AttributeError):
             alex_hmm.models.dwell_nano_mean
         with pytest.raises(AttributeError):
             alex_hmm.models.nanohist
+        with pytest.raises(AttributeError):
+            alex_hmm.models.state_nano_mean
+        with pytest.raises(AttributeError):
+            alex_hmm.models.err_nano_mean_std
+        with pytest.raises(AttributeError):
+            alex_hmm.models.state_nano_mean_err
 
+
+def test_nanowarnings():
+    data = nsalex_data()
+    frb.loader.alex_apply_period(data)
+    data.calc_bg(fun=frb.bg.exp_fit, time_s=30, tail_min_us='auto', F_bg=1.7)
+    data.burst_search(m=10, F=6, ph_sel=frb.Ph_sel(Dex='DAem', Aex='Aem'))
+    data_da = data.select_bursts(frb.select_bursts.size, th1=100)
+    bdata = bhm.BurstData(data_da)
+    bdata.models.calc_models(to_state=2, max_state=3)
+    with pytest.warns(UserWarning):
+        bdata.models[1].dwell_nano_mean
+    bdata.auto_div(2,name='twodiv')
+    bdata.div_models['twodiv'].calc_models()
+    with pytest.warns(UserWarning):
+        bdata.div_models['twodiv'][1].state_nano_mean
+            
+def test_nanohist(alex_hmm):
+    if alex_hmm.data.lifetime:
+        phot = alex_hmm.models[1].nanohist.sum()
+        divphot = alex_hmm.div_models['twodiv'][1].nanohist.sum()
+        assert divphot == phot == sum(times.shape[0] for times in alex_hmm.times)
+
+def test_gamma(alex_hmm):
+    if alex_hmm.data.lifetime:
+        alex_hmm.models[1].conf_thresh = None
+        rphot = sum(times.shape[0] for times in alex_hmm.times)
+        alex_hmm.models[1].gamma_thresh = 0.95
+        phot = alex_hmm.models[1].nanohist.sum()
+        assert rphot > phot
+        alex_hmm.div_models['twodiv'][1].gamma_thresh = 0.95
+        dphot = alex_hmm.div_models['twodiv'][1].nanohist.sum()
+        assert rphot > dphot
+        
+
+def test_conf_thresh(alex_hmm):
+    if alex_hmm.data.lifetime:
+        alex_hmm.models[1].gamma_thresh = None
+        rphot = sum(times.shape[0] for times in alex_hmm.times)
+        alex_hmm.models[1].conf_thresh = 0.95
+        phot = alex_hmm.models[1].nanohist.sum()
+        assert rphot > phot
+        alex_hmm.div_models['twodiv'][1].conf_thresh = 0.95
+        dphot = alex_hmm.div_models['twodiv'][1].nanohist.sum()
+        assert rphot > dphot
 
 ###
-# Error testing
+# ModelError testing
 ###
 
 def test_ModelSet(alex_hmm):
@@ -132,8 +185,8 @@ def test_ModelSet(alex_hmm):
         parammat = getattr(modset, param)
         assert np.all(parammat == parammat[0,...])
     if alex_hmm.data.lifetime:
-        models = [h2.factory_h2mm_model(2,alex_hmm.div_models['twdiv'].ndet) for _ in range(4)]
-        modset = bhm.ModelError.ModelSet(alex_hmm.models, models)
+        models = [h2.factory_h2mm_model(2,alex_hmm.div_models['twodiv'].ndet) for _ in range(4)]
+        modset = bhm.ModelError.ModelSet(alex_hmm.div_models['twodiv'], models)
         assert len(modset) == 4
         for param in ('E', 'S', 'E_corr', 'S_corr'):
             parammat = getattr(modset, param)
@@ -164,26 +217,32 @@ def test_ll_error(alex_hmm):
 
 def test_ll_covar_E(alex_hmm):
     ESarray = np.array([0.1,0.11,0.12,0.13,0.14])
+    alex_hmm.models[1].loglik_err.get_E_err(0)
+    alex_hmm.models[1].loglik_err.get_E_err(1)
     alex_hmm.models[1].loglik_err.covar_E(1, converged_min=1e-10)
     alex_hmm.models[1].loglik_err.covar_E(0, rng=(0.1,0.4), steps=4)
     assert len(alex_hmm.models[1].loglik_err.E_covar[0]) == 4
     alex_hmm.models[1].loglik_err.covar_E(0, rng=ESarray)
     assert len(alex_hmm.models[1].loglik_err.E_covar[0]) == ESarray.size
-    assert np.all(alex_hmm.models[1].loglik_err.E_covar[0].E[:,0] == ESarray)
+    assert np.allclose(alex_hmm.models[1].loglik_err.E_covar[0].E[:,0], ESarray)
     
     
 def test_ll_covar_S(alex_hmm):
     ESarray = np.array([0.1,0.11,0.12,0.13,0.14])
+    alex_hmm.models[1].loglik_err.get_S_err(0)
+    alex_hmm.models[1].loglik_err.get_S_err(1)
     alex_hmm.models[1].loglik_err.covar_S(1, converged_min=1e-10, max_iter=10)
     alex_hmm.models[1].loglik_err.covar_S(0, rng=(0.1,0.4), steps=4, max_iter=10)
     assert len(alex_hmm.models[1].loglik_err.S_covar[0]) == 4
     alex_hmm.models[1].loglik_err.covar_S(0, rng=ESarray, max_iter=10)
     assert len(alex_hmm.models[1].loglik_err.S_covar[0]) == ESarray.size
-    assert np.all(alex_hmm.models[1].loglik_err.S_covar[0].E[:,0] == ESarray)
+    assert np.allclose(alex_hmm.models[1].loglik_err.S_covar[0].S[:,0], ESarray)
     
     
 def teest_ll_covar_trans(alex_hmm):
     trans_array = np.array([100,120,140,160,180])
+    alex_hmm.models[1].loglik_err.get_trans_err(0,1)
+    alex_hmm.models[1].loglik_err.get_trans_err(1,0)
     alex_hmm.models[1].loglik_err.covar_trans(0,1, converged_min=1e-10, max_iter=10)
     alex_hmm.models[1].loglik_err.covar_trans(0,1, rng=(100,200), steps=4, converged_min=1e-10, max_iter=10)
     assert len(alex_hmm.models[1].loglik_err.trans_covar[1,0]) == 4
@@ -229,12 +288,13 @@ def test_dwell_scatter(alex_hmm, func):
         func(alex_hmm.models, ax=ax, s=10, states=np.array([1,0]))
         fig, ax = plt.subplots()
         func(alex_hmm.models, ax=ax, plot_type='kde', add_corrections=True)
-        func(alex_hmm.div_models['twodiv'][2])
-        alex_hmm.div_models['twodiv'].ideal = 2
-        fig, ax = plt.subplots()
-        func(alex_hmm.div_models['twodiv'], ax=ax, s=10, states=np.array([1,0]))
-        fig, ax = plt.subplots()
-        func(alex_hmm.div_models['twodiv'], ax=ax, plot_type='kde', add_corrections=True)
+        if alex_hmm.data.lifetime:
+            func(alex_hmm.div_models['twodiv'][2])
+            alex_hmm.div_models['twodiv'].ideal = 2
+            fig, ax = plt.subplots()
+            func(alex_hmm.div_models['twodiv'], ax=ax, s=10, states=np.array([1,0]))
+            fig, ax = plt.subplots()
+            func(alex_hmm.div_models['twodiv'], ax=ax, plot_type='kde', add_corrections=True)
     else:
         with pytest.raises(Exception):
             func(alex_hmm.models[2])
@@ -311,6 +371,58 @@ def test_ll_trans_scatter(alex_hmm):
     fig, ax = plt.subplots()
     bhm.ll_trans_scatter(alex_hmm.models[2], 0,1, ax=ax, rng=np.logspace(-8, -6, 10))
     plt.close('all')
+
+
+def test_plot_burst_index(alex_hmm):
+    for tp in ('states','transitions','longest','photons', 0):    
+        fig, ax = plt.subplots()
+        bhm.plot_burst_index(alex_hmm.models[2], tp, ax=ax)
+        plt.close('all')
+    fig, ax = plt.subplots()
+    bhm.plot_burst_index(alex_hmm.models[2], 'states', ax=ax, streams=[frb.Ph_sel(Dex='Dem'),frb.Ph_sel(Dex='Aem')],
+                         stream_pos={frb.Ph_sel(Dex='Dem'):0.2, frb.Ph_sel(Dex='Aem'):0.7}, 
+                         stream_color={frb.Ph_sel(Dex='Dem'):'c', frb.Ph_sel(Dex='Aem'):'r'},
+                         stream_edge={frb.Ph_sel(Dex='Dem'):'k', frb.Ph_sel(Dex='Aem'):'orange'},
+                         tick_labels=False,
+                         s=20)
+    plt.close('all')
+    fig, ax = plt.subplots()
+    bhm.plot_burst_index(alex_hmm.models[2], 'states', invert=True, rng=(1,3))
+    plt.close('all')
+    if alex_hmm.data.lifetime:
+        fig, ax = plt.subplots()
+        bhm.plot_burst_index(alex_hmm.div_models['twodiv'], 'states', colapse_div=True)
+        plt.close('all')
+        fig, ax = plt.subplots()
+        bhm.plot_burst_index(alex_hmm.div_models['twodiv'], 'states', 
+                             stream_pos={i:0.1*(i+1) for i in range(alex_hmm.div_models['twodiv'].ndet)})
+        plt.close('all')
+
+def test_plot_burst_path(alex_hmm):
+    for tp in ('states','transitions','longest','photons', 0):    
+        fig, ax = plt.subplots()
+        bhm.plot_burst_path(alex_hmm.models[2], 'states', param='E', ax=ax, 
+                            state_color=['r','g','b','k'], linewidth=[1,2,3,4])
+        plt.close('all')
+        fig, ax = plt.subplots()
+        bhm.plot_burst_path(alex_hmm.models[2], 'states', param='S', ax=ax, 
+                            state_color=['r','g','b'], linewidth=[1,2,3,4])
+        plt.close('all')
+        if alex_hmm.data.lifetime:
+            fig, ax = plt.subplots()
+            bhm.plot_burst_path(alex_hmm.div_models['twodiv'][2], 'states',param='E', ax=ax, 
+                                state_color=['r','g','b'], linewidth=[1,2,3,4])
+            plt.close('all')
+            fig, ax = plt.subplots()
+            bhm.plot_burst_path(alex_hmm.div_models['twodiv'][2], 'states',param='state_nano_mean', ax=ax, 
+                                state_color=['r','g','b'], linewidth=[1,2,3,4], stream=0)
+            plt.close('all')
+            fig, ax = plt.subplots()
+            bhm.plot_burst_path(alex_hmm.div_models['twodiv'][2], 'states',param='state_nano_mean', ax=ax, 
+                                state_color=['r','g','b'], linewidth=[1,2,3,4], stream=frb.Ph_sel(Dex='Aem'))
+            plt.close('all')
+            
+
 
 if __name__ == '__main__':
     pytest.main("-x -v tests/test_burstH2MM.py")
