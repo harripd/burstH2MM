@@ -447,6 +447,8 @@ def scatter_ES(model, ax=None, add_corrections=False, states=None, **kwargs):
     ax = _check_ax(ax)
     if states is None:
         states = np.arange(model.nstate)
+    elif isinstance(states, (list, tuple)):
+        states = np.array(states)
     E_name, S_name = ("E_corr", "S_corr") if add_corrections else ("E", "S")
     E, S = getattr(model, E_name), getattr(model, S_name)
     collection = ax.scatter(E[states], S[states], **kwargs)
@@ -455,8 +457,9 @@ def scatter_ES(model, ax=None, add_corrections=False, states=None, **kwargs):
 
 @_useideal
 def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,  
-                   states=None, positions=0.5,rotate=True, sep=2e-2, fstring='3.0f', 
-                   from_arrow='-', to_props=None, to_arrow='-|>', from_props=None, 
+                   states=None, positions=0.5, rotate=True, sep=2e-2, 
+                   fstring='3.0f', unit=False, 
+                   from_arrow='-', from_props=None, to_arrow='-|>', to_props=None, 
                    arrowprops=None, state_kwargs=None, **kwargs):
     """
     Generate arrows between states in E-S plot indicating the transition rate.
@@ -491,13 +494,21 @@ def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,
         The default is 2e-2.
     fstring : str, optional
         The format string defining how to format the transition rate. 
-        The default is '3.0f'.
+        The default is '3.0f'
+    unit : bool or str, optional
+        The unit to display for transition rates. If False, no unit is displayed.
+        If True, show s^-1, if a string (not recomended) this string will be appended
+        to the end of all transition rates. The default is False
     from_arrow : str, optional
         Format string for arrow pointing to from_state (value passed to 'arrowstyle'). 
         The default is '-'.
+    from_props : 
+        The default is None
     to_arrow : str, optional
         Format string for arrow pointing to to_state (value passed to 'arrowstyle'). 
         The default is '-\|>'.
+    to_props : 
+        The default is None
     state_kwargs : tuple[tuple[dict]], optional
         Transition specific keyword arguments to be passed to ax.annotate(). 
         The default is None.
@@ -519,9 +530,14 @@ def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,
     if states is None:
         states = tuple((i, j) for i, j in permutations(range(model.nstate), 2) if model.trans[i,j] >= min_rate)
     else:
-        for st in states:
-            if len(st) != 2 or np.any([not isinstance(s,int) for s in st]):
-                raise ValueError("States must be tuple of (from_state, to_state) tuples")
+        try:
+            trans_num = len(states)
+            states = tuple(tuple(st) for st in states if len(st)==2)
+        except TypeError as e:
+            raise TypeError("Incorrect format for states, must be ((from_state, to state), ...)") from e
+        else:
+            if trans_num != len(states):
+                raise ValueError("Each state must be defined by a [from_state, to_state] like array")
     if state_kwargs is None:
         state_kwargs = [[kwargs for j in range(model.nstate)] for i in range(model.nstate)]
     if isinstance(positions,  (float, int)):
@@ -540,18 +556,26 @@ def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,
         from_props = dict()
     if not isinstance(from_props, (dict, map)):
         raise ValueError(f"from_props must be mapping, got {type(from_props)}")
+    if isinstance(unit, bool):
+        unit = r'$s^{-1}$' if unit else ''
+    elif not isinstance(unit, str):
+        raise ValueError(f"unit must be bool or str, got {type(unit)}")
     base_kwargs = dict(xycoords='data', textcoords='data', horizontalalignment='center', 
                        verticalalignment='center', rotation_mode='anchor', 
                        transform_rotates_text=True)
     to_kwargs = base_kwargs.copy()
     from_kwargs = base_kwargs.copy()
     to_kwargs['arrowprops'] = _update_ret(arrowprops, {'arrowstyle':to_arrow, **to_props})
+    if 'facecolor' in to_kwargs['arrowprops'] or 'edgecolor' in to_kwargs['arrowprops']:
+        to_kwargs['arrowprops'].pop('color', None)
     from_kwargs['arrowprops'] = _update_ret(arrowprops, {'arrowstyle':from_arrow, **from_props})
+    if 'facecolor' in from_kwargs['arrowprops'] or 'edgecolor' in from_kwargs['arrowprops']:
+        from_kwargs['arrowprops'].pop('color', None)
     E = model.E_corr if add_corrections else model.E
     S = model.S_corr if add_corrections else model.S
     annos = list()
     for i, j in states:
-        tstr = ('%%%s' % fstring) % model.trans[i,j]
+        tstr = ('%%%s' % fstring) % model.trans[i,j] + ' ' + unit
         try:
             st_kw_to = _update_ret(to_kwargs, state_kwargs[i][j])
             st_kw_from = _update_ret(from_kwargs, state_kwargs[i][j])
@@ -1151,7 +1175,7 @@ def dwell_E_hist(model, ax=None, add_corrections=False, states=None, state_kwarg
     in_kwargs = {'alpha':0.5}
     in_kwargs.update(**kwargs)
     E = 'dwell_E_corr' if add_corrections else 'dwell_E'
-    collections = dwell_param_hist(model, E, states=states, state_kwargs=state_kwargs, 
+    collections = dwell_param_hist(model, E, ax=ax, states=states, state_kwargs=state_kwargs,
                                    label_kwargs=label_kwargs, dwell_pos=dwell_pos, **in_kwargs)
     # move lists of streams (not applicable to E)
     collections = [collection[0] for collection in collections]

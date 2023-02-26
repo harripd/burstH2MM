@@ -24,7 +24,7 @@ Finding Hidden States
 .. image:: images/workflow.png
 
 
-To start the analysis of burst data with |H2MM|, we first need to process the data with FRETBursts, one of the dependencies of burstH2MM.
+To start the analysis of burst data with |H2MM|, we first need to process the data with FRETBursts, one of the dependencies of burstH2MM. :doc:`How-To-Error-Evaluation-rst`
 
 .. note::
 

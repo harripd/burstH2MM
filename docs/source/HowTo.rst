@@ -15,3 +15,4 @@ How To Guides
     AccessDiv
     Customization
     Simulation
+    How-To-Error-Evaluation-rst.ipynb

@@ -1,7 +1,23 @@
 .. currentmodule:: burstH2MM
 
+.. _ref:
+
 Quantifying Accuracy/Precision of Model Parameter Values
 ========================================================
+
++--------------------------------------------------------+-----------------------+
+| .. figure:: https://imgs.xkcd.com/comics/omniknot.png  |                       |
+|                                                        |                       |
+|    Fig 1. is captioned                                 | column 2              |
++========================================================+=======================+
+| label 1                                                | label 2               |
++--------------------------------------------------------+-----------------------+
+
+
+
+.. seealso::
+    
+    View this how-to `guide <https://www.xkcd.com>`_ as a jupyter notebook: dowaload :ref:`ref <ref>`
 
 .. note::
 
@@ -122,7 +138,7 @@ and |BSS_err_corr|,
 
 
 
-You can also see the values of the individual subset models. This is done through the attribute |BS_models|.
+You can also see the values of the individual subset models. This is done through the attribute |BS_models|. 
 
 This attribute is again another special class, |ModSet| used for organizing models that vary only in their specific parameter values, but share the same number of states, and data and divisor scheme.
 It lets you access the transition rate, E and S values as attributes, and for E and S, access these with the |ModSet_trans|, |ModSet_E|, |ModSet_S| attributes respectively.
@@ -226,13 +242,14 @@ The equivalent for the stoichiometry is |LLError_getSerr|:
 0.00077636718749996
 
 
-
-These value indicate the point at which models where a given parameter value is varied from the optimal, have a loglikelihood 0.5 less than the optimal model, ie:
+These value indicate :math:`F=m*a` the point at which models where a given parameter value is varied from the optimal, have a loglikelihood 0.5 less than the optimal model, ie:
 
 .. math::
 
     LL(\lambda _{\Delta E_{n}}) = LL(\lambda _{optimal}) - 0.5
 
+
+    
 There are two points at which this is true, one where :math:`E_{n}` is greater than the optimal :math:`E_{n}`, and another, where :math:`E_{n}` is less than the optimal :math:`E_{n}`, denoted :math:`E_{n, high}` and
 :math:`E_{n, low}` respectively.
 
@@ -347,8 +364,8 @@ masked_array(
 
 
 
-Concluding this list of access attributes, the loglikelihood values of these models are also stored in the |LLError_Ell|,
-|LLError_Sll|, and |LLError_transll| attributes:
+    Concluding this list of access attributes, the loglikelihood values of these models are also stored in the |LLError_Ell|,
+    |LLError_Sll|, and |LLError_transll| attributes:
 
 
 >>> bdata.models[2].loglik_err.E_ll
@@ -428,7 +445,8 @@ These reset their respective arrays:
     bdata.models[2].loglik_err.clear_S()
     bdata.models[2].loglik_err.clear_trans()
 
-As the name suggests, |LLError_clearall| clears all the values. So the three lines above, together do what is done bellow in a single line:
+As the name suggests, |LLError_clearall| clears all the values.
+So the three lines above, together do what is done bellow in a single line:
 
 .. code:: ipython3
 
@@ -960,6 +978,7 @@ So we’ll take the covariance of E in state 0, and the covariance of S in state
 The key point, is that you have access to all non-lifetime model parameters (not dwell parameters) through identically named elements, and you can see how they correlate with one another and the overall
 logliklihood.
 
+
 .. |H2MM| replace:: H\ :sup:`2`\ MM
 .. |DD| replace:: D\ :sub:`ex`\ D\ :sub:`em`
 .. |DA| replace:: D\ :sub:`ex`\ A\ :sub:`em`
@@ -975,7 +994,7 @@ logliklihood.
 .. |HML_llerr| replace:: :attr:`H2MM_result.loglik_err <BurstSort.H2MM_result.loglik_err>`
 .. |E_std_bs| replace:: :attr:`H2MM_result.E_std_bs <BurstSort.H2MM_result.E_std_bs>`
 .. |S_std_bs| replace:: :attr:`H2MM_result.S_std_bs <BurstSort.H2MM_result.S_std_bs>`
-.. |trans_std_bs| replace:: :attr:`H2MM_result.trans_std_bs <BurstSort.h2MM_result.trans_std_bs>`
+.. |trans_std_bs| replace:: :attr:`H2MM_result.trans_std_bs <BurstSort.H2MM_result.trans_std_bs>`
 .. |BSE_std| replace:: :attr:`ModelError.Bootstrap_Error.E_std <ModelError.Bootstrap_Error.E_std>`
 .. |BSS_std| replace:: :attr:`ModelError.Bootstrap_Error.S_std <ModelError.Bootstrap_Error.S_std>`
 .. |BStrans_std| replace:: :attr:`ModelError.Bootstrap_Error.trans_std <ModelError.Bootstrap_Error.trans_std>`

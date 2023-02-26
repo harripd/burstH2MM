@@ -315,6 +315,10 @@ def test_arrow(alex_hmm):
     bhm.dwell_ES_scatter(alex_hmm.models, ax=ax)
     bhm.trans_arrow_ES(alex_hmm.models, states=((0,1),(1,2)), fstring='3.1f')
     plt.close('all')
+    fig, ax = plt.subplots(figsize=(6,6))
+    bhm.dwell_ES_scatter(alex_hmm.models, ax=ax)
+    bhm.trans_arrow_ES(alex_hmm.models, positions=np.array[[0.5, 0.2, 0.4],[0.1, 0.5, 0.6],[0.7,0.5,0.6]])
+    plt.close('all')
 
 def test_scatter_ES(alex_hmm):
     bhm.scatter_ES(alex_hmm.models[2])
