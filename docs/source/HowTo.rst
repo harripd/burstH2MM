@@ -9,10 +9,10 @@ How To Guides
     :caption: Guides
     :maxdepth: 2
 
-    AccessResult
+    PlottingFunctions
+    ResultsAccess
     Uncertainty
-    ControlPlot
-    AccessDiv
+    usALEX
+    DivisorAccess
     Customization
-    Simulation
-    How-To-Error-Evaluation-rst.ipynb
+    Simulations

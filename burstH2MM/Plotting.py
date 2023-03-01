@@ -2491,7 +2491,7 @@ def _stream_color_map(stream_map, index_red, streams, idx_keep, index_keep, name
 
 def plot_burst_index(data, burst, ax=None, colapse_div=False, streams=None, 
                      stream_pos=None, stream_color=None, rng=None, invert=False, 
-                     tick_labels=None, stream_edge=None, **kwargs):
+                     stream_labels=None, stream_edge=None, **kwargs):
     """
     Plot indexes of a given burst
 
@@ -2523,10 +2523,10 @@ def plot_burst_index(data, burst, ax=None, colapse_div=False, streams=None,
     invert : bool, optional
         If True, then indexes plotted from top to bottom, if False, first indexes 
         plotted from bottom to top. The default is False.
-    tick_labels : bool, dict, optional
+    stream_labels : bool, dict, optional
         Whether or not to display tick labels on y-axis, provided as dictionary:
-            {stream:label} where stream is either fretbursts.Ph_sel or int, and
-            label is str. The default is None.
+        {stream:label} where stream is either fretbursts.Ph_sel or int, and
+        label is str. The default is None.
     stream_edge : dict or array-like, optional
         Edge-colors for each index. The default is None.
     **kwargs : dict
@@ -2616,22 +2616,22 @@ def plot_burst_index(data, burst, ax=None, colapse_div=False, streams=None,
     edges = _stream_color_map(stream_edge, index_red, streams, idx_keep, index_keep, 
                               'stream_edge', ('ec', 'edgecolor'), kwargs, False)
     ret = ax.scatter(times, index_pos, c=colors, ec=edges,**kwargs)
-    if tick_labels is True:
-        if colapse_div:
+    if stream_labels is True:
+        if colapse_div or data.div_map[-1] == len(data.parent.ph_streams):
             labels = [str(ph_sel) for ph_sel in streams]
         else:
-            labels = list(chain.from_iterable((tick_labels[sel] for _ in idx) for sel, idx in zip(streams, index_keep)))
-    elif isinstance(tick_labels, dict):
-        if all(isinstance(key, frb.Ph_sel) for key in tick_labels.keys()):
+            labels = list(chain.from_iterable((f'{sel} {i}' for i, _ in enumerate(idx)) for sel, idx in zip(streams, index_keep)))
+    elif isinstance(stream_labels, dict):
+        if all(isinstance(key, frb.Ph_sel) for key in stream_labels.keys()):
             if colapse_div:
-                labels = [tick_labels[ph_sel] for ph_sel in streams]
+                labels = [stream_labels[ph_sel] for ph_sel in streams]
             else:
-                labels = list(chain.from_iterable((tick_labels[sel] for _ in idx) for sel, idx in zip(streams, index_keep)))
-        elif all(np.issubdtype(type(key), np.integer) for key in tick_labels.keys()):
-            labels = [tick_labels[i] for i in idx_keep]
-    elif tick_labels not in (None, False):
-        raise TypeError(f"tick_labels must be None, bool, or dictionary of fretbursts.Ph_sel or int, got {type(tick_labels)}")
-    if tick_labels not in (None, False):
+                labels = list(chain.from_iterable((stream_labels[sel] for _ in idx) for sel, idx in zip(streams, index_keep)))
+        elif all(np.issubdtype(type(key), np.integer) for key in stream_labels.keys()):
+            labels = [stream_labels[i] for i in idx_keep]
+    elif stream_labels not in (None, False):
+        raise TypeError(f"tick_labels must be None, bool, or dictionary of fretbursts.Ph_sel or int, got {type(stream_labels)}")
+    if stream_labels not in (None, False):
         ax.set_yticks(pos)
         ax.set_yticklabels(labels)
     return ret
@@ -2696,6 +2696,6 @@ def plot_burstjoin(model, burst, ax=None, add_corrections=False, state_color=Non
     if stream_color is None:
         stream_color = {sel:__stream_color[sel] if sel in __stream_color else 'b' for sel in model.parent.parent.ph_streams}
     plot_burst_index(model.parent, burst, ax=ax, colapse_div=True, 
-                     stream_color=stream_color, invert=True, tick_labels=True)
+                     stream_color=stream_color, invert=True, stream_labels=True)
     ax.yaxis.set_ticks_position('right')
     ax.set_ylim([0,1])

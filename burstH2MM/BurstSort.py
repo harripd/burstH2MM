@@ -262,10 +262,14 @@ def _sort_usALEX(data, ph_streams, Aex_stream, Aex_shift):
         Aex_shift = [Aex_shift, ]
     if Aex_shift:
         Aex = list()
+        has_Aex = False
         for i in range(len(ph_streams)):
             if ph_streams[i] in Aex_stream:
                 Aex.append(i)
+                has_Aex = True
         Aex_mask = [np.array([index == A for A in Aex]).sum(axis=0) != 0 for index in indexes]
+        if not has_Aex:
+            Aex_shift = False
     if Aex_shift =='shift':
         alex_shift = data.D_ON[0] - data.A_ON[0]
         for i in range(len(times)):
@@ -889,12 +893,12 @@ class BurstData:
                 ph_streams = (frb.Ph_sel(Dex="Dem"), 
                               frb.Ph_sel(Dex="Aem"), 
                               frb.Ph_sel(Aex="Aem"))
-                if Aex_stream is None:
-                    Aex_stream = (frb.Ph_sel(Aex='Aem'), )
-                elif isinstance(Aex_stream, frb.Ph_sel):
-                    Aex_stream = (Aex_stream, )
             else:
                 ph_streams = (frb.Ph_sel(Dex="Dem"), frb.Ph_sel(Dex="Aem"))
+        if Aex_stream is None:
+            Aex_stream = (frb.Ph_sel(Aex='Aem'), )
+        elif isinstance(Aex_stream, frb.Ph_sel):
+            Aex_stream = (Aex_stream, )
         self.__data = data
         self.__ph_streams = ph_streams
         self.__Aex_stream = Aex_stream

@@ -4,9 +4,9 @@ requires = [
     "wheel",
     "IPython",
     "oldest-supported-numpy",
-    "pandas",
     "matplotlib",
     "seaborn",
-    "H2MM_C >= 1.0.2"
+    "H2MM_C"
 ]
 build-backend = "setuptools.build_meta"
+

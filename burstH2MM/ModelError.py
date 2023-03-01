@@ -5,8 +5,8 @@
 # Author: paul
 
 """
-Error Evaluation
-----------------
+Uncertainties
+-------------
 
 .. note::
     

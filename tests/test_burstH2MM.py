@@ -70,6 +70,28 @@ def test_optimization(alex_data):
     assert bdata.models.ICL.size > 0
 
 
+def test_sph2mm(alex_data):
+    """Smoke test for single parameter optimization"""
+    bdata = bhm.BurstData(alex_data, ph_streams=[frb.Ph_sel(Dex='Dem'), frb.Ph_sel(Dex='Aem')])
+    model = h2.factory_h2mm_model(2,2)
+    bdata.models.optimize(model)    
+    assert bdata.models.ICL.size > 0
+
+def test_shift(alex_data):
+    """smoke test for shift methods"""
+    if not alex_data.lifetime:
+        model = h2.factory_h2mm_model(2,3)
+        bdata = bhm.BurstData(alex_data, Aex_shift='rand')
+        bdata.models.optimize(model)
+        bdata = bhm.BurstData(alex_data, Aex_shift='shift')
+        bdata.models.optimize(model)
+        bdata = bhm.BurstData(alex_data, Aex_shift=False)
+        bdata.models.optimize(model)
+    else:
+        for shift in ('even', 'rand', 'shift', True):
+            with pytest.raises(NotImplementedError):
+                bdata = bhm.BurstData(alex_data, Aex_shift=shift)    
+
 
 
 ### Fixtures computed only after BurstData has been verified
@@ -317,7 +339,7 @@ def test_arrow(alex_hmm):
     plt.close('all')
     fig, ax = plt.subplots(figsize=(6,6))
     bhm.dwell_ES_scatter(alex_hmm.models, ax=ax)
-    bhm.trans_arrow_ES(alex_hmm.models, positions=np.array[[0.5, 0.2, 0.4],[0.1, 0.5, 0.6],[0.7,0.5,0.6]])
+    bhm.trans_arrow_ES(alex_hmm.models, positions=np.array([[0.5, 0.2, 0.4],[0.1, 0.5, 0.6],[0.7,0.5,0.6]]))
     plt.close('all')
 
 def test_scatter_ES(alex_hmm):
@@ -387,7 +409,7 @@ def test_plot_burst_index(alex_hmm):
                          stream_pos={frb.Ph_sel(Dex='Dem'):0.2, frb.Ph_sel(Dex='Aem'):0.7}, 
                          stream_color={frb.Ph_sel(Dex='Dem'):'c', frb.Ph_sel(Dex='Aem'):'r'},
                          stream_edge={frb.Ph_sel(Dex='Dem'):'k', frb.Ph_sel(Dex='Aem'):'orange'},
-                         tick_labels=False,
+                         stream_labels=False,
                          s=20)
     plt.close('all')
     fig, ax = plt.subplots()
