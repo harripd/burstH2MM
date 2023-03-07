@@ -358,7 +358,7 @@ class MdUtext(MdBase):
         return 1 if bool(begline_regex.match(self.text)) else 0
     @property
     def endline(self):
-        return 1 if self.text[-1] == '\n' else 0
+        return 1 if len(self.text) > 0 and self.text[-1] == '\n' else 0
     def split(self, n=1):
         return (MdUtext(txt) for txt in self.text.split('\n', n))
 
@@ -1279,6 +1279,18 @@ def init_nb(file, nb_dir, out_dir):
             out_nb[key] = val
     return out_file, orig_nb, out_nb
 
+def write_cell(cell, text):
+    new_cell = dict()
+    for key, val in cell.items():
+        if key == 'cell_type':
+            new_cell[key] = 'raw'
+        elif key == 'metadata':
+            new_cell[key] = {'raw_mimetype': 'text/restructuredtext'}
+        elif key == 'source':
+            new_cell[key] = text
+        else:
+            new_cell[key] = val
+    return new_cell
 
 def convert_notebook(file, nb_dir, rst_dir, md_dir):
     MdBase.set_notebook(file)
@@ -1290,8 +1302,7 @@ def convert_notebook(file, nb_dir, rst_dir, md_dir):
     source = ''.join(cell['source'])
     text_split = [text + '\n' for text in render_RST(procHighlevel_contents(base_gen(source))).split('\n')]
     text_split[-1] = text_split[-1][:-1]
-    rst_nb['cells'].append({'cell_type':'raw', 'metadata': {'raw_mimetype': 'text/restructuredtext'},
-                                   'id':cell['id'], 'source':text_split})
+    rst_nb['cells'].append(write_cell(cell, text_split))
     for i, cell in cells:
         if cell['cell_type'] != 'markdown':
             rst_nb['cells'].append(cell)
@@ -1299,8 +1310,7 @@ def convert_notebook(file, nb_dir, rst_dir, md_dir):
         source = ''.join(cell['source'])
         text_split = [text + '\n' for text in render_RST(procHighlevel(base_gen(source))).split('\n')]
         text_split[-1] = text_split[-1][:-1]
-        rst_nb['cells'].append({'cell_type':'raw', 'metadata': {'raw_mimetype': 'text/restructuredtext'},
-                                       'id':cell['id'], 'source':text_split})
+        rst_nb['cells'].append(write_cell(cell, text_split))
     if rst_nb['cells'][-1]['cell_type'] == 'raw':
         md_file = str(md_dir.joinpath(file.relative_to(nb_dir)).relative_to(rst_dir))
         download_text = ['\n', '\n', f'Download this documentation as a jupyter notebook here: :download:`{file.parts[-1]} <{md_file}>`']

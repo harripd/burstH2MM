@@ -825,13 +825,13 @@ def _full_state_nano_mean_err(model):
 
     """
     mask = np.ones(model.dwell_state.shape, dtype=bool)
-    weights, states = model.dwell_ph_counts.sum(axis=0), model.dwell_state
     # calculate weighted averages
-    wghtav = [_weighted_avg(dnm, weights, states, mask, model.nstate) for dnm in model.dwell_nano_mean]
+    wghtav = [_weighted_avg(dnm, weights, model.dwell_state, mask, model.nstate) 
+              for dnm, weights in zip(model.dwell_nano_mean, model.dwell_ph_counts)]
     # unpack
-    nano_mean = np.array([val[0] for val in wghtav])
-    nano_std = np.array([val[1] for val in wghtav])
-    nano_err = np.array([val[2] for val in wghtav])
+    nano_mean = np.array([val[0] for val in wghtav]).T
+    nano_std = np.array([val[1] for val in wghtav]).T
+    nano_err = np.array([val[2] for val in wghtav]).T
     return nano_mean, nano_std, nano_err
 
 
@@ -1119,12 +1119,15 @@ def _conv_crit(model_list, attr, thresh):
         Index of ideal model.
 
     """
-    discrim = getattr(model_list, attr)
-    if thresh is None:
-        conv = np.argmin(discrim) if model_list.num_opt > 1 else 1
+    if model_list.num_opt > 1:    
+        discrim = getattr(model_list, attr)
+        if thresh is None:
+            return discrim.argmin()
+        else:
+            discrim -= discrim.min()
+            return np.argwhere(discrim < thresh)[0,0]
     else:
-        conv = np.argwhere(thresh < 0.05)[0,0] if  model_list.num_opt > 1 else 1
-    return conv
+        raise RuntimeError("Must optimize more than 1 model before identifying ideal model")
 
 def _calc_burst_state_counts(path, trans_locs, nstate):
     """
@@ -1165,7 +1168,7 @@ def _calc_burst_code(state_counts):
     burst_code = np.array([sum([2**i for i, b in enumerate(burst) if b != 0]) for burst in state_counts.T])
     return burst_code
 
-def find_ideal(model_list, conv_crit, thresh=None, auto_set=False):
+def find_ideal(model_list, conv_crit, thresh=None):
     """
     Identify the ideal state model
 
@@ -1190,8 +1193,6 @@ def find_ideal(model_list, conv_crit, thresh=None, auto_set=False):
     if len(model_list.opts) < 1:
         warnings.warn("Only one model calculated, no sources of comparison")
     ideal = _conv_crit(model_list, conv_crit, thresh)
-    if ideal == 1 and len(model_list.opts):
-        ideal = 0
     return ideal
 
 
@@ -1199,10 +1200,10 @@ def _weighted_avg(data, weights, states, mask, nstate):
     mask = mask * ~np.isnan(data)
     data, weights, states = data[mask], weights[mask], states[mask]
     masks = [states == s for s in range(nstate)]
-    sums = np.sqrt(np.array([m.sum() for m in masks]))
+    sums_sqrt = np.sqrt(np.array([m.sum() for m in masks]))
     avg = np.array([np.average(data[m], weights=weights[m]) for m in masks])
     std = np.array([np.average((data[m] - avg[s])**2, weights=weights[m]) for s, m in enumerate(masks)])
-    err = std / sums
+    err = std / sums_sqrt
     return avg, std, err
 
 
@@ -1268,7 +1269,11 @@ class H2MM_list:
     @property
     def num_opt(self):
         """Number of optimizations conducted"""
-        return np.array([opt is not None for opt in self.opts]).sum()
+        return sum(opt is not None for opt in self.opts)
+    
+    @property
+    def max_opt(self):
+        return len(self.opts)
 
     @property
     def BIC(self):
@@ -1733,9 +1738,9 @@ def _get_dwell_trans_mask(model, locs, include_beg=True, include_end=False):
         Defnition of which transitions to include in the mask. Normally a 2-tuple
         of ints, specifying the state of the dwell, and the next state.
     
-    For examining dwells without a subsequent transition, (whole burst, and 
-    optionally dwells at the end of a burst) specify as an int, 1-tuple, or 
-    2-tuple with both elements the same.
+        For examining dwells without a subsequent transition, (whole burst, and 
+        optionally dwells at the end of a burst) specify as an int, 1-tuple, or 
+        2-tuple with both elements the same.
     include_beg : bool, optional
         Whether or not to have transitions where the dwell is an initial dwell
         set to true in the mask. Only used dwell and next state are different.
@@ -1756,7 +1761,7 @@ def _get_dwell_trans_mask(model, locs, include_beg=True, include_end=False):
     if isinstance(locs, Iterable):
         if len(locs) > 2:
             raise ValueError(f"Agrument must be a 1 or 2 tuple, got {len(locs)}-tuple")
-        elif np.any([not isinstance(l, int) for l in locs]):
+        elif np.any([not np.issubdtype(type(l), np.integer) for l in locs]):
             raise ValueError(f"All values in locs must be integers, got {[type(l) for l in locs]}")
         elif max(locs) >= model.model.nstate:
             raise ValueError(f"Nonexistent state {max(locs)} specified, max state is {model.model.nstate -1}")
@@ -1859,12 +1864,13 @@ class H2MM_result:
 
     """
     #: tuple of parameters that include dwell or photon information- cleared by trim data
-    large_params = ("_gamma", "path", "scale", "_trans_locs", "_burst_dwell_num", "_dwell_pos", 
+    large_params = ("_gamma", "_path", "_scale", "_trans_locs", "_burst_dwell_num", "_dwell_pos", 
                     "_dwell_state", "_dwell_dur", "_dwell_ph_counts", "_dwell_ph_counts_bg",
                     "_dwell_E", "_dwell_S", "_dwell_E_corr", "_dwell_S_corr",
                     "_dwell_nano_mean", "_dwell_ph_counts_bg", "_nanohist", "_burst_state_counts")
-    #: tuple of state-based parameters derived from dwell based parameters
-    state_params = ('_state_nano_mean', '_state_nano_mean_std', '_state_nano_mean_err')
+    #: dictionary of state parameters as keys, and values the type of plot to use in axline
+    state_params = {'E':'single', 'E_corr':'single', 'S':'single', 'S_corr':'single',
+                    'state_nano_mean':'stream'}
     #: List of all parameters dependent on lifetime information
     nanotime_params = (_ResetTuple('nanohist', ('_nanohist',)),
                        _ResetTuple('dwell_nano_mean', ('_dwell_nano_mean')),
@@ -1888,10 +1894,10 @@ class H2MM_result:
     def __init__(self, parent, model, gamma=None, **kwargs):
         path, scale, ll, icl = h2.viterbi_path(model, parent.index, parent.parent.times, 
                                                                    **kwargs)
-        #: most likely state of each photon in each burst
-        self.path = path
-        #: posterior probability of each photon in each burst
-        self.scale = scale
+        # most likely state of each photon in each burst
+        self._path = path
+        # posterior probability of each photon in each burst
+        self._scale = scale
         # loglikelihood of each photon in each burst
         self.ll = ll
         #: Integrated Complete Likelihood (ICL) for the model
@@ -2031,9 +2037,23 @@ class H2MM_result:
             without A:sub:`ex`\ A:sub:`em` stream
 
         """
-        #: :class:`ModelError.Booststrap_Error` object storying error values, used by `_bs` properties.
+        #: :class:`ModelError.Bootsstrap_Error` object storying error values, used by `_bs` properties.
         self.bootstrap_err = ModelError.Bootstrap_Error.model_eval(self, subsets=subsets)
         return tuple(getattr(self.bootstrap_err, attr) for attr in ('trans_std', 'E_std', 'S_std') if hasattr(self.bootstrap_err, attr))
+    
+    @property
+    def path(self):
+        """most likely state of each photon in each burst"""
+        if not hasattr(self, '_path'):
+            self._path, self._scale, self.ll, self.icl = h2.viterbi_path(self.model, self.parent.index, self.parent.parent.times)
+        return self._path
+    
+    @property
+    def scale(self):
+        """posterior probability of each photon in each burst"""
+        if not hasattr(self, '_scale'):
+            self._path, self._scale, self.ll, self.icl = h2.viterbi_path(self.model, self.parent.index, self.parent.parent.times)
+        return self._path
     
     @property
     def gamma(self):
@@ -2049,7 +2069,7 @@ class H2MM_result:
     @property
     def E_std_bs(self):
         """
-        Error in FRET efficiency values as calcualted by the bootstrap method.
+        Standard deviation in FRET efficiency values as calcualted by the bootstrap method.
         Only accesible after :meth:`H2MM_result.bootstrap_eval` has been run.
         """
         if self.bootstrap_err is None:
@@ -2057,6 +2077,18 @@ class H2MM_result:
                                     " use 'bootstrap_eval' method to calculate, "
                                     "WARNGING this method may take a while")
         return self.bootstrap_err.E_std
+    
+    @property
+    def E_err_bs(self):
+        """
+        Error in FRET efficiency values as calcualted by the bootstrap method.
+        Only accesible after :meth:`H2MM_result.bootstrap_eval` has been run.
+        """
+        if self.bootstrap_err is None:
+            raise UnboundLocalError("This value has not been calculated yet,"
+                                    " use 'bootstrap_eval' method to calculate, "
+                                    "WARNGING this method may take a while")
+        return self.bootstrap_err.E_err
     
     @property
     def E_err_ll(self):
@@ -2075,7 +2107,7 @@ class H2MM_result:
     @property
     def S_std_bs(self):
         """
-        Error in stoichiometry values as calcualted by the bootstrap method.
+        Standard deviation in stoichiometry values as calcualted by the bootstrap method.
         Only accesible after :meth:`H2MM_result.bootstrap_eval` has been run.
         """
         if self.bootstrap_err is None:
@@ -2085,6 +2117,18 @@ class H2MM_result:
         return self.bootstrap_err.S_std
     
     @property
+    def S_err_bs(self):
+        """
+        Standard deviation in stoichiometry values as calcualted by the bootstrap method.
+        Only accesible after :meth:`H2MM_result.bootstrap_eval` has been run.
+        """
+        if self.bootstrap_err is None:
+            raise UnboundLocalError("This value has not been calculated yet,"
+                                    " use 'bootstrap_eval' method to calculate, "
+                                    "WARNGING this method may take a while")
+        return self.bootstrap_err.S_err
+    
+    @property
     def S_err_ll(self):
         return self.loglik_err.S
     
@@ -2092,6 +2136,30 @@ class H2MM_result:
     def S_corr(self):
         """The gamma/beta corrected stoichiometry of each state in the model"""
         return self.parent._S_from_model_corr(self.model)
+    
+    @property
+    def S_corr_std_bs(self):
+        """
+        Standard deviation in stoichiometry values as calcualted by the bootstrap method.
+        Only accesible after :meth:`H2MM_result.bootstrap_eval` has been run.
+        """
+        if self.bootstrap_err is None:
+            raise UnboundLocalError("This value has not been calculated yet,"
+                                    " use 'bootstrap_eval' method to calculate, "
+                                    "WARNGING this method may take a while")
+        return self.bootstrap_err.S_corr_std
+    
+    @property
+    def S__correrr_bs(self):
+        """
+        Standard deviation in stoichiometry values as calcualted by the bootstrap method.
+        Only accesible after :meth:`H2MM_result.bootstrap_eval` has been run.
+        """
+        if self.bootstrap_err is None:
+            raise UnboundLocalError("This value has not been calculated yet,"
+                                    " use 'bootstrap_eval' method to calculate, "
+                                    "WARNGING this method may take a while")
+        return self.bootstrap_err.S_corr_err
     
     @property
     def trans(self):
@@ -2504,16 +2572,15 @@ class H2MM_result:
         if self._hasE:
             rpr_dict.update(E_raw=self.E, E_corr=self.E_corr)
             E_v, E_v_s, E_v_e = _weighted_avg(self.dwell_E, weights, states, mask, self.nstate)
-            rpr_dict.update(E_vit_raw=E_v, E_vit_raw_err=E_v_e)
+            rpr_dict.update(E_vit_raw=E_v, E_vit_raw_std=E_v_s, E_vit_raw_err=E_v_e)
             E_v_c, E_v_s_c, E_v_e_c = _weighted_avg(self.dwell_E_corr, weights, states, mask, self.nstate)
-
-            rpr_dict.update(E_vit_corr=E_v_c, E_vit_corr_err=E_v_e_c)
+            rpr_dict.update(E_vit_corr=E_v_c, E_vit_corr_std=E_v_s_c, E_vit_corr_err=E_v_e_c)
         if self._hasS:
             rpr_dict.update(S_raw=self.S, S_corr=self.S_corr)
             S_v, S_v_s, S_v_e = _weighted_avg(self.dwell_S, weights, states, mask, self.nstate)
-            rpr_dict.update(S_vit_raw=S_v, S_vit_raw_err=S_v_e)
+            rpr_dict.update(S_vit_raw=S_v, S_vit_raw_std=S_v_s, S_vit_raw_err=S_v_e)
             S_v_c, S_v_s_c, S_v_e_c = _weighted_avg(self.dwell_S_corr, weights, states, mask, self.nstate)
-            rpr_dict.update(S_vit_corr=S_v, S_vit_corr_err=S_v_e_c)
+            rpr_dict.update(S_vit_corr=S_v, S_vit_corr_std=S_v_s_c, S_vit_corr_err=S_v_e_c)
         for s in range(self.model.nstate):
             rpr_dict[f'to_state_{s}'] = self.trans[:,s]
         trans_cnts, trans_vit = trans_stats(self, ph_min=ph_min)
@@ -2525,14 +2592,17 @@ class H2MM_result:
             if self._hasS:
                 rpr_dict.update(S_std_bs=self.S_std_bs)
             rpr_dict.update(**{f'to_state_{i}_std_bs':trs for i, trs in enumerate(self.trans_std_bs)})
-        if np.any(~self.loglik_err._E.mask):
+        if self._hasE and np.any(~self.loglik_err._E.mask):
             rpr_dict.update(E_err_ll=self.E_err_ll)
-        if np.any(~self.loglik_err._S.mask):
+        if self._hasS and np.any(~self.loglik_err._S.mask):
             rpr_dict.update(S_err_ll=self.S_err_ll)
         rpr_dict.update(**{f'to_state_{i}_err_low_ll':trs for i, trs in enumerate(self.trans_err_low_ll.T)  if np.any(~trs.mask)})
         rpr_dict.update(**{f'to_state_{i}_err_high_ll':trs for i, trs in enumerate(self.trans_err_high_ll.T) if np.any(~trs.mask)})
         if self.parent.parent.data.lifetime and self.parent.parent._irf_thresh_set:
-            rpr_dict.update(nanomean=self.state_nano_mean, nanomean_err=self.state_nano_mean_err)
+            for i, sel in enumerate(self.parent.parent.ph_streams):
+                rpr_dict.update({f'nanomean_{sel}':self.state_nano_mean[:,i], 
+                                 f'nanomean_{sel}_std':self.state_nano_mean_std[:,i],
+                                 f'nanomean_{sel}_err':self.state_nano_mean_err[:,i]})
         dataframe = pd.DataFrame(rpr_dict, index=index_name)
         return dataframe 
         

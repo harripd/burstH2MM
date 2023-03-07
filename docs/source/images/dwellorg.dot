@@ -1,9 +1,0 @@
-digraph G{
-node [shape=record];
-burst0 [label=<<TABLE cellspacing="0" cellpadding="0"><TR><TD colspan="4">Burst 0</TD></TR><TR><TD>Dwell State</TD><TD bgcolor="green" width="40">0</TD><TD bgcolor="red" width="40">1</TD><TD bgcolor="green" width="40">0</TD></TR></TABLE>>];
-burst1 [label=<<TABLE cellspacing="0" cellpadding="0"><TR><TD>Burst 1</TD></TR><TR><TD bgcolor="green" width="40">0</TD></TR></TABLE>>];
-burst2 [label=<<TABLE cellspacing="0" cellpadding="0"><TR><TD colspan="2">Burst 2</TD></TR><TR><TD bgcolor="red" width="40">1</TD><TD bgcolor="purple" width="40">2</TD></TR></TABLE>>];
-dwparam [label=<<TABLE cellspacing="0" cellpadding="0"><TR><TD colspan="7">Dwell Array</TD></TR><TR><TD>Dwell State</TD><TD bgcolor="green" width="40">0</TD><TD bgcolor="red" width="40">1</TD><TD bgcolor="green" width="40">0</TD><TD bgcolor="green" width="40">0</TD><TD bgcolor="red" width="40">1</TD><TD bgcolor="purple" width="40">2</TD></TR><TR><TD>Dwell Pos</TD><TD bgcolor="yellow">2</TD><TD bgcolor="cyan">0</TD><TD bgcolor="coral">1</TD><TD bgcolor="yellowgreen">3</TD><TD bgcolor="yellow">2</TD><TD bgcolor="coral">1</TD></TR></TABLE>>];
-{rank=same; burst0; burst1; burst2;};
-{burst0, burst1, burst2} -> dwparam;
-}

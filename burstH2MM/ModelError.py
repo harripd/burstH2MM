@@ -285,12 +285,12 @@ class Bootstrap_Error:
         return self.E_std / np.sqrt(len(self.models))
 
     @property
-    def E_std_corr(self):
+    def E_corr_std(self):
         """Standard deviation of corrected FRET efficiencies"""
         return self.models.E_corr.std(axis=0)
     
     @property
-    def E_err_corr(self):
+    def E_corr_err(self):
         """Standard error of corrected FRET efficiencies"""
         return self.E_std_corr / np.sqrt(len(self.models))
 
@@ -305,12 +305,12 @@ class Bootstrap_Error:
         return self.S_std / np.sqrt(len(self.models))
 
     @property
-    def S_std_corr(self):
+    def S_corr_std(self):
         """Standard deviation of corrected stoichiometries"""
         return self.models.S_corr.std(axis=0)
     
     @property
-    def S_err_corr(self):
+    def S_corr_err(self):
         """Standard error of corrected stoichiometries"""
         return self.S_std_corr / np.sqrt(len(self.models))
     
@@ -1250,7 +1250,7 @@ def covar_S(err, state, rng=None, steps=10, **kwargs):
     return ModelSet(err.parent.parent, model_arr)
     
 
-LL_Set = namedtuple('LL_Set', ['err', 'err_ll', 'rng', 'rng_ll', 'afunc', 'sfunc'])
+_LL_Set = namedtuple('_LL_Set', ['err', 'err_ll', 'rng', 'rng_ll', 'afunc', 'sfunc'])
 
 
 class Loglik_Error:
@@ -1267,9 +1267,9 @@ class Loglik_Error:
     #: precision of loglikelihood needed to consider error bound to be found
     _flex = 5e-3
     #: dictionary of parameter names to map to different types
-    _param_groups = {'E':LL_Set('_E', 'E_ll', 'E_rng', 'E_ll_rng', _E_adjust, E_space),
-                    'S':LL_Set('_S', 'S_ll', 'S_rng', 'S_ll_rng', _S_adjust, S_space),
-                    'trans':LL_Set('_trans', 'trans_ll', 't_rate_rng', 't_ll_rng',
+    _param_groups = {'E':_LL_Set('_E', 'E_ll', 'E_rng', 'E_ll_rng', _E_adjust, E_space),
+                    'S':_LL_Set('_S', 'S_ll', 'S_rng', 'S_ll_rng', _S_adjust, S_space),
+                    'trans':_LL_Set('_trans', 'trans_ll', 't_rate_rng', 't_ll_rng',
                                    _trans_adjust, _trans_space)}
     
     def __init__(self, parent):

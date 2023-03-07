@@ -1,6 +1,7 @@
 import pytest
 # from urllib.request import urlretrieve
 
+from itertools import permutations
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -9,6 +10,13 @@ import burstH2MM as bhm
 import H2MM_C as h2
 
 
+def all_less(a, m):
+    if a is None:
+        return True
+    elif np.issubdtype(type(a), np.number):
+        return a < m
+    else:
+        return max(a) < m
 
 
 def nsalex_data():
@@ -343,13 +351,56 @@ def test_arrow(alex_hmm):
     plt.close('all')
 
 def test_scatter_ES(alex_hmm):
-    bhm.scatter_ES(alex_hmm.models[2])
-    alex_hmm.ideal = 2
+    bhm.scatter_ES(alex_hmm.models[3])
+    alex_hmm.ideal = 3
     fig, ax = plt.subplots(figsize=(6,6))
     bhm.dwell_ES_scatter(alex_hmm.models, ax=ax)
     bhm.scatter_ES(alex_hmm.models, states=np.array([1,2]))
     plt.close('all')
+    
 
+@pytest.mark.parametrize('from_state, to_state', [(a, b) for a, b in 
+                                                  permutations((None, 0,1, 5, [1],[1,2], np.array([2]),
+                                                                np.array([2,1]), 5, [2,5]),2)])
+def test_dwell_trans_durs(alex_hmm, from_state, to_state):
+    if all_less(from_state, 3) and all_less(to_state, 3):        
+        bhm.dwell_trans_dur_hist(alex_hmm.models[2], from_state=from_state, to_state=to_state)
+        fig, ax = plt.subplots()
+        bhm.dwell_trans_dur_hist(alex_hmm.models[2], from_state=from_state, to_state=to_state, ax=ax)
+        
+    else:
+        with pytest.raises(Exception):
+            bhm.dwell_trans_dur_hist(alex_hmm.models[2], from_state=from_state, to_state=to_state)
+    plt.close('all')
+
+
+
+@pytest.mark.parametrize('func', (bhm.mid_dwell, bhm.end_dwell, bhm.begin_dwell, bhm.burst_dwell,
+                                  bhm.edge_dwell, bhm.not_mid_dwell, bhm.burst_begin_dwell,
+                                  bhm.burst_end_dwell, 0, 5, [0, 1], np.array([0, 1]),
+                                  [0,5], np.array([0,5])))
+def test_dwell_pos(alex_hmm, func):
+    if callable(func) or all_less(func, 3):
+        bhm.dwell_dur_hist(alex_hmm.models[2], dwell_pos=func)
+    else:
+        with pytest.raises(Exception):
+            bhm.dwell_dur_hist(alex_hmm.models[2], dwell_pos=func)
+    plt.close('all')
+
+@pytest.mark.parametrize('func', (bhm.dwell_trans, bhm.dwell_trans_from))
+def test_dwell_trans(alex_hmm, func):
+    bhm.dwell_dur_hist(alex_hmm.models[2], dwell_pos=lambda model: func(model, 1), states=[0])
+    bhm.dwell_dur_hist(alex_hmm.models[2], dwell_pos=lambda model: func(model, 1, True), states=[0])
+    bhm.dwell_dur_hist(alex_hmm.models[2], dwell_pos=lambda model: func(model, 1, False), states=[0])
+    with pytest.raises(ValueError):
+        bhm.dwell_dur_hist(alex_hmm.models[2], dwell_pos=lambda model: func(model, 3), states=[0])
+    plt.close('all')
+
+def test_dwell_size(alex_hmm):
+    bhm.dwell_E_hist(alex_hmm.models[2], dwell_pos=lambda model: bhm.dwell_size(model, 5))
+    bhm.dwell_E_hist(alex_hmm.models[2], dwell_pos=lambda model: bhm.dwell_size(model, 5, ph_max=100))
+    bhm.dwell_E_hist(alex_hmm.models[2], dwell_pos=lambda model: bhm.dwell_size(model, 5, streams=[frb.Ph_sel(Dex='Dem')]))
+    plt.close('all')
 
 @pytest.mark.parametrize('func', (bhm.axline_E, bhm.axline_S))
 def test_axlines(alex_hmm, func):

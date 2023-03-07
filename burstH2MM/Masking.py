@@ -56,7 +56,8 @@ def end_dwell(model):
 
 def begin_dwell(model):
     """
-    Return mask of all dwells at the beginning of bursts
+    Return mask of all dwells at the beginning of bursts, not including bursts
+    with a single state
 
     Parameters
     ----------
@@ -126,9 +127,10 @@ def not_mid_dwell(model):
     return model.dwell_pos != 0
 
 
-def burst_init_dwell(model):
+def burst_begin_dwell(model):
     """
-    Return mask of all dwells that start at the beginning of a burst
+    Return mask of all dwells that start at the beginning of a burst, including
+    bursts with a single state.
 
     Parameters
     ----------
@@ -226,11 +228,11 @@ def dwell_trans(model, to_state, include_beg=True):
     model : H2MM_model
         The model for which the mask is generated
     to_state : int
-        
+        The state of the subsequent dwell for the mask to return true
     
     include_beg : bool, optional
         Whether or not to have transitions where the dwell is an initial dwell
-        set to true in the mask. Only used dwell and next state are different.
+        set to true in the mask.
         The default is True.
 
     Returns
@@ -241,5 +243,37 @@ def dwell_trans(model, to_state, include_beg=True):
     """
     dwell_trans_mask = np.sum([BurstSort._get_dwell_trans_mask(model, (i, to_state), 
                                                                include_beg=include_beg) 
-                               for i in range(model.nstate) if i !=to_state], axis=0)
+                               for i in range(model.nstate) if i !=to_state], axis=0) == 1
+    return dwell_trans_mask
+
+
+def dwell_trans_from(model, from_state, include_end=True):
+    """
+    Geneate a mask of which dwells belong to a given type of transition.
+    This allows selection of dwells of a given state, that transition to another
+    specific state.
+
+    Parameters
+    ----------
+    model : H2MM_model
+        The model for which the mask is generated
+    from_state : int
+        The state of the previous dwell for the mask to return true
+    
+    include_end : bool, optional
+        Whether or not to have transitions where the dwell is an end dwell
+        set to true in the mask.
+        The default is True.
+
+    Returns
+    -------
+    dwell_trans_mask : numpy.ndarray[bool]
+        Mask of dwells meeting the specified transitions.
+
+    """
+    dwell_trans_mask = np.sum([BurstSort._get_dwell_trans_mask(model, (from_state, i), 
+                                                               include_beg=True,
+                                                               include_end=include_end) 
+                               for i in range(model.nstate) if i !=from_state], axis=0)
+    dwell_trans_mask = np.concatenate([[False], dwell_trans_mask[:-1] == 1]) 
     return dwell_trans_mask

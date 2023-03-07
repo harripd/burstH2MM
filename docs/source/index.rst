@@ -38,6 +38,7 @@ Contents
    HowTo
    Discussion
    Documentation
+   OrigPaper
 
 Indices and tables
 ==================

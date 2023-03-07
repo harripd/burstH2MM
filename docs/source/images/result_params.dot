@@ -19,8 +19,9 @@ index;
 }
 {index, times} -> model;
 {photon_data, mburst} -> {times, index, nanos};
-{model, times, index} -> {path, scale};
+{model, times, index} -> {path, scale, loglik_err, bootstrap_err};
 {path, nanos, scale} -> nanohist;
+nanohist -> state_nano_mean;
 {path, trans_locs} -> {burst_type, burst_state_counts};
 {times, trans_locs} -> dwell_dur;
 {index, trans_locs} -> dwell_ph_counts;
@@ -33,20 +34,26 @@ model;
 subgraph cluster4{
 label="Dynamically calculated parameters";
 
-nanohist;
-
 subgraph cluster5{
+label="Uncertainty Analysis"
+loglik_err;
+bootstrap_err;
+}
+nanohist;
+state_nano_mean;
+
+subgraph cluster6{
 label="Burst based parameters"
 burst_state_counts -> burst_type;
 }
-subgraph cluster6{
+subgraph cluster7{
 label="Viterbi Results";
 path;
 scale;
 }
 path -> trans_locs;
 {path, trans_locs} -> dwell_state;
-subgraph cluster7{
+subgraph cluster8{
 label="Dwell based parameters"
 dwell_dur;
 dwell_nano_mean;

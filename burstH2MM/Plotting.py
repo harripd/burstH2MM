@@ -17,7 +17,7 @@ through various keyword arguments.
 """
 
 from collections.abc import Iterable
-from itertools import chain, cycle, repeat, permutations
+from itertools import chain, cycle, repeat, permutations, product
 import functools
 import warnings
 import numpy as np
@@ -143,9 +143,13 @@ def _check_streams(model, streams):
         streams = model.parent.parent.ph_streams
     elif isinstance(streams, frb.Ph_sel):
         streams = [streams, ]
-    in_stream = np.array([stream in model.parent.parent.ph_streams for stream in streams])
-    if not np.all(in_stream):
-        ValueError(f"Stream(s) {[stream for stream, in_s in zip(streams, in_stream) if not in_s]} not in BurstData")
+    elif not all(isinstance(stream, (int, frb.Ph_sel)) for stream in streams):
+        nstream = [(i, type(stream)) for i, stream in enumerate(streams) if not isinstance(stream, (int, frb.Ph_sel))]
+        raise TypeError(f"Elements of streams must be fretursts.Ph_sel or ints got {nstream}")
+    streams = [stream if isinstance(stream, frb.Ph_sel) else model.parent.parent.ph_streams[stream] for stream in streams]
+    if not all(stream in model.parent.parent.ph_streams for stream in streams):
+        nstream = [stream for stream in streams if stream not in model.parent.parent.ph_streams]
+        ValueError(f"Stream(s) {nstream} not in BurstData")
     return streams
 
 
@@ -287,24 +291,32 @@ def _make_dwell_pos(model, dwell_pos):
     """
     if dwell_pos is None:
         pos_mask = np.ones(model.dwell_pos.shape, dtype=bool)
-    elif isinstance(dwell_pos, (list, tuple)):
-        pos_mask = np.sum([model.dwell_pos == i for i in dwell_pos], axis=0) > 0
     elif isinstance(dwell_pos, int):
+        if dwell_pos > 4 or dwell_pos < 0:
+            raise ValueError("If dwell_pos is int, must be between 0 and 4")
         pos_mask = model.dwell_pos == dwell_pos
-    elif isinstance(dwell_pos, np.ndarray):
+    elif isinstance(dwell_pos, (np.ndarray, list, tuple)):
+        if isinstance(dwell_pos, (list, tuple)):
+            dwell_pos = np.array(dwell_pos)
         if dwell_pos.dtype == bool:
             if model.dwell_pos.size == dwell_pos.size:
                 pos_mask = dwell_pos
             else:
                 raise ValueError(f'dwell_pos inorrect size, got {dwell_pos.size}, expected {model.dwell_pos.size}')
         elif np.issubdtype(dwell_pos.dtype, np.integer):
-            if dwell_pos.max() > model.model.nstate:
+            if dwell_pos.max() > 4:
                 raise ValueError(f'dwell_pos includes non-exitstent states, model has only {model.model.nstate} states')
             elif dwell_pos.min() < 0:
                 raise ValueError('dwell_pos incldues negative values, only non-negative values allowed')
             pos_mask = np.sum([model.dwell_pos == i for i in dwell_pos], axis=0) > 0
     elif callable(dwell_pos):
         pos_mask = dwell_pos(model)
+        if not isinstance(pos_mask, np.ndarray):
+            raise TypeError(f"dwell_pos function must return boolean numpy array, got {type(pos_mask)}")
+        elif pos_mask.dtype != bool:
+            raise TypeError(f"dtype of mask return by dwell_pos function must be bool, got {pos_mask.dtype}")
+        elif pos_mask.shape != model.dwell_pos.shape:
+            raise ValueError(f"mismatch in shape of array returned by dwell_pos and H2MM_resutl.dwell_pos: {pos_mask.shape}, {model.dwell_pos.shape}")
     else:
         raise TypeError('Invalid dwell_pos type')
     return pos_mask
@@ -413,8 +425,13 @@ def burst_ES_scatter(model, add_corrections=False, flatten_dynamics=False,
     ax.set_ylabel(ylabel, **label_kwargs)
     return collections
 
+__errorbar_kwargs = dict(color='k',lw=0,ms=2,marker='.',elinewidth=3,capsize=3,mec='white',mew=2)
+
+# TODO: Add 2-param state scatter function
+
 @_useideal
-def scatter_ES(model, ax=None, add_corrections=False, states=None, **kwargs):
+def scatter_ES(model, ax=None, add_corrections=False, states=None, 
+               errorbar=False, errorbar_kwargs=None, **kwargs):
     """
     Plot the position of all states in E and S
         
@@ -435,13 +452,20 @@ def scatter_ES(model, ax=None, add_corrections=False, states=None, **kwargs):
         A mask for which states to use. May be a 1-D integer array of states, or
         boolean mask of which states to plot, in the latter case, must be of the
         same size as the number of states in the model. The default is None
+    errorbar : bool or str, optional
+        Whether or not to add error bars to based on chosen type of error.
+        Optional types
+        The default is False
+    errorbar_kwargs : dict
+        Keyword arguments passed to ax.errorbar
     **kwargs : keyword arguments
         Keyword arguments passed to ax.scatter to control the plotting
 
     Returns
     -------
-    collection : matplotlib.collections.PathCollection
-        The path collection the scatter plot method returns
+    collection : matplotlib.collections.PathCollection or tuple
+        The path collection the scatter plot method returns, or, if errorbar
+        is used, a tuple of collectiosn, one for scatter the other for errorbar
 
     """
     ax = _check_ax(ax)
@@ -450,10 +474,65 @@ def scatter_ES(model, ax=None, add_corrections=False, states=None, **kwargs):
     elif isinstance(states, (list, tuple)):
         states = np.array(states)
     E_name, S_name = ("E_corr", "S_corr") if add_corrections else ("E", "S")
-    E, S = getattr(model, E_name), getattr(model, S_name)
-    collection = ax.scatter(E[states], S[states], **kwargs)
-    return collection
+    E, S = getattr(model, E_name)[states], getattr(model, S_name)[states]
     
+    if errorbar:
+        if errorbar_kwargs is None:
+            errorbar_kwargs = dict()
+        errorbar_kwargs = _update_ret(__errorbar_kwargs, errorbar_kwargs)
+        if isinstance(errorbar, bool):
+            errorbar = 'loglik'
+        elif not isinstance(errorbar, str):
+            raise TypeError(f"errorbar must be bool or str, got {type(errorbar)}")
+        if errorbar == 'loglik':
+            Er, Sr = E, S
+            E_err = np.abs(model.loglik_err.get_E_err(states, simple=False).T - E)
+            S_err = np.abs(model.loglik_err.get_S_err(states, simple=False).T - S)
+        elif 'bootstrap' in errorbar:
+            if model.bootstrap_err is None:
+                model.bootstrap_eval()
+            E_key, S_key = 'E', 'S'
+            Er, Sr = E, S
+            if add_corrections:
+                E_key += "_corr"
+                S_key += "_corr"
+            if 'std' in errorbar:
+                E_key += '_std'
+                S_key += '_std'
+            else:
+                E_key += '_err'
+                S_key += '_err'
+            E_err = getattr(model.bootstrap_err, E_key)[states]
+            S_err = getattr(model.bootstrap_err, S_key)[states]
+        elif 'viterbi' in errorbar:
+            stat_frame = model.stats_frame()
+            E_key, S_key = 'E_vit_', 'S_vit_'
+            if add_corrections:
+                Er, Sr = stat_frame['E_vit_corr'][states], stat_frame['S_vit_corr'][states]
+                E_key += 'corr_'
+                S_key += 'corr_'
+            else:
+                Er, Sr = stat_frame['E_vit_raw'][states], stat_frame['S_vit_raw'][states]
+                E_key += 'raw_'
+                S_key += 'raw_'
+            if 'std' in errorbar:
+                E_key += 'std'
+                S_key += 'std'
+            else:
+                E_key += 'err'
+                S_key += 'err'
+            E_err = stat_frame[E_key][states]
+            S_err = stat_frame[S_key][states]
+        else:
+            raise ValueError("errorbar string must contain 'loglik', 'bootstrap', or 'viterbi'")
+        ecollection = ax.errorbar(Er, Sr, xerr=E_err, yerr=S_err, **errorbar_kwargs)
+    collection = ax.scatter(E, S, **kwargs)
+    if errorbar:
+        collection = (collection, ecollection)
+    return collection
+
+# TODO: add trans-arrow function for 1 parameter
+# TODO: add trans-arrow for arbitrary parameters
 
 @_useideal
 def trans_arrow_ES(model, ax=None, add_corrections=False, min_rate=1e1,  
@@ -626,6 +705,7 @@ def _check_line_kwargs(model, states, state_kwargs):
         raise ValueError("state_kwargs must be same size as states, got {len(state_kwargs)} and {states.size}")
     return states, state_kwargs
 
+# TODO: add general parameter axline function
 
 @_useideal
 def axline_E(model, ax=None, add_corrections=False, horizontal=False, states=None, 
@@ -653,14 +733,14 @@ def axline_E(model, ax=None, add_corrections=False, horizontal=False, states=Non
         Which states to plot, identified as array of states, boolean mask or int.
         The default is None
     state_kwargs : list[dict], optional
-        Keyword arguments per state passed to ax.axvline. The default is None.
+        Keyword arguments per state passed to ax.axvline/ax.axhline. The default is None.
     **kwargs : dict
-        passed to ax.axvline as kwargs
+        passed to ax.axvline/ax.axhline as kwargs
 
     Returns
     -------
     lines : list[matplotlib.lines.Line2D]
-        List of Lines returned by ax.axvline
+        List of Lines returned by ax.axvline/ax.axhline
 
     """
     ax = _check_ax(ax)
@@ -684,7 +764,7 @@ def axline_S(model, ax=None, add_corrections=False, horizontal=False, states=Non
 
     Parameters
     ----------
-    model : H2MM_result
+    model : H2MM_result, H2MM_list, BurstData
         Model to plot values of S
     ax : matplotlib.axes._subplots.AxesSubplot, optional
         Axes to draw scatterplot in. The default is None.
@@ -697,9 +777,9 @@ def axline_S(model, ax=None, add_corrections=False, horizontal=False, states=Non
         Which states to plot, identified as array of states, boolean mask or int.
         The default is None
     state_kwargs : list[dict], optional
-        Keyword arguments per state passed to ax.axvline. The default is None.
+        Keyword arguments per state passed to ax.axvline/ax.axhline. The default is None.
     **kwargs : dict
-        passed to ax.axvline as kwargs
+        passed to ax.axvline/ax.axhline as kwargs
 
     Returns
     -------
@@ -714,7 +794,58 @@ def axline_S(model, ax=None, add_corrections=False, horizontal=False, states=Non
     lines = [axline(s, **kw) for s, kw in zip(S, state_kwargs)]
     return lines
 
-    
+
+@_useideal
+def axline_nano_mean(model, ax=None, horizontal=False, states=None, state_kwargs=None,
+                     streams=[frb.Ph_sel(Dex='Dem')], stream_kwargs=None,
+                     kwarg_arr=None, **kwargs):
+    """
+    Draw lines across the axis for the mean nanotime of each state.
+
+    Parameters
+    ----------
+    model : H2MM_result, H2MM_list, BurstData
+        Model for which to plot the mean nanotimes of states.
+    ax : matplotlib.axes._subplots.AxesSubplot, optional
+        Axes to draw axes lines in. The default is None.
+    horizontal : bool, optional
+        Whether to plot the bars horizontally (True) or vertically (False)
+        The default is False.
+    states : array-like, optional
+        Which states to plot, identified as array of states, boolean mask or int.
+        The default is None
+    state_kwargs : list[dict], optional
+        Keyword arguments per state passed to ax.axvline/ax.axhline. The default is None.
+    streams : list[fretbursts.Ph_sel], optional
+        Photon streams to include mean nanotimes. The default is [frb.Ph_sel(Dex='Dem')].
+    stream_kwargs : list[dict], optional
+        Keyword arguments per stream bassed to ax.axvline/ax.axhline. The default is None.
+    kwarg_arr : array of kwarg dicts, optional
+        Array of dicts to use as kwargs for specific combinations of states/streams
+        in data. Cannot be specified at same time as state_kwargs. If 2D, then will
+        overwrite stream_kwargs, 2nd dimension, if exists specifies stream kwargs
+        The default is None.
+    **kwargs : dict
+        Universal keyword agruments, passed to all calls of ax.axvline/ax.axhline.
+
+    Returns
+    -------
+    lines : list[list[matplotlib.lines.Line2D]]
+        DESCRIPTION.
+
+    """
+    states, streams, kwarg_arr = _process_kwargs(model, states, streams, state_kwargs, stream_kwargs)
+    ax = _check_ax(ax)
+    axline = ax.axhline if horizontal else ax.axvline
+    lines = list()
+    for state, kwarg_stream in zip(states, kwarg_arr):
+        lines.append(list())
+        for stream, kwarg in zip(streams, kwarg_stream):
+            new_kwarg = _update_ret(kwargs, kwarg)
+            streamid = np.argwhere([stream == sel for sel in model.parent.parent.ph_streams])[0,0]
+            lines[-1].append(axline(model.state_nano_mean[state, streamid], **new_kwarg))
+    return lines
+
 
 @_useideal
 def dwell_param_hist(model, param, streams=None, dwell_pos=None, states=None, 
@@ -800,7 +931,7 @@ def dwell_param_hist(model, param, streams=None, dwell_pos=None, states=None,
     ax.set_ylabel("counts", **label_kwargs)
     return collections
 
-
+# TODO: make dwell_params_scatter accept distinct paramx and paramy streams/stream_kwargs arguments
 @_useideal
 def dwell_params_scatter(model, paramx, paramy, states=None, state_kwargs=None, dwell_pos=None, 
                          streams=None, stream_kwargs=None, label_kwargs=None, kwarg_arr=None,
@@ -1188,8 +1319,8 @@ def dwell_S_hist(model, ax=None, states=None, state_kwargs=None,add_corrections=
 
     Parameters
     ----------
-    model : H2MM_result
-        Source of data.
+    model : H2MM_result, H2MM_list, BurstData
+        Model for which to plot histogram of stoiciometries.
     ax : matplotlib.axes._subplots.AxesSubplot, optional
         Axes to draw histogram(s) in. The default is None.
     add_corrections : bool, optional
@@ -1226,15 +1357,55 @@ def dwell_S_hist(model, ax=None, states=None, state_kwargs=None,add_corrections=
     return collections
 
 @_useideal
-def dwell_trans_dur_hist(model, to_state=None, from_state=None, include_beg=True, 
-                          to_state_kwargs=None, from_state_kwargs=None, 
-                          kwarg_arr=None, ax=None, **kwargs):
+def dwell_trans_dur_hist(model, from_state=None, to_state=None,  
+                          from_state_kwargs=None, to_state_kwargs=None, 
+                          include_beg=True, kwarg_arr=None, ax=None, **kwargs):
+    """
+    Plot histograms of dwell durations sorted by state of the dwell and the state
+    of the subsequent dwell.
+
+    Parameters
+    ----------
+    model : H2MM_result, H2MM_list, BurstData
+        Model for which to plot the histograms of durations of dwells.
+    from_state : int, array-like[int],, optional
+        State(s) of current dwell. The default is None.
+    to_state : int, array-like[int], optional
+        State(s) of dwell to which plotted duration transitions. The default is None.
+    from_state_kwargs : array-like[dict], optional
+        Array of keyword arguments of same size of ``to_state`` passed for a given 
+        originating state to ax.hist. The default is None.
+    to_state_kwargs : array-like[dict], optional
+        Array of keyword arguments of same size of ``to_state`` passed for a given 
+        destination state to ax.hist. The default is None.
+    include_beg : bool, optional
+        Whether or not to include beginning dwells in analysis. The default is True.
+    kwarg_arr : array-like[array-like[dict]], optional
+        Array of arrays organized [from_state, to_state] specifying keyword arguments
+        passed to each specific [from_state, to_state] combinations of dwell durations.
+        The default is None.
+    ax : matplotlib.axes._subplots.AxesSubplot, optional
+        Axes to draw histogram(s) in. The default is None.
+    **kwargs : dict
+        Keyword arguments forwarded to ax.hist.
+
+    Raises
+    ------
+    ValueError
+        Incorrect specification of one or more keyword arguments.
+
+    Returns
+    -------
+    collections : list[list[matplotlib.container.BarContainer]]
+        list of lists of return values of ax.hist.
+
+    """
     to_state = _check_states(model, to_state)
     from_state = _check_states(model, from_state)
     if (from_state_kwargs is not None or to_state_kwargs is not None) and kwarg_arr is not None:
         warnings.warn("Specifying to_state_kwargs or from_state_kwargs at same time as kwarg_arr, will result in dictionary smashing")
     # build kwargs array, first check kwarg_arr
-    kwarg_mat = [[dict(alpha=0.5, bins=20) for j in to_state] for i in from_state]
+    kwarg_mat = [[_update_ret(dict(alpha=0.5, bins=20), kwargs) for j in to_state] for i in from_state]
     if kwarg_arr is not None:
         if not isinstance(kwarg_arr, Iterable):
             raise ValueError("kwarg_arr is not iterable type")
@@ -1268,16 +1439,44 @@ def dwell_trans_dur_hist(model, to_state=None, from_state=None, include_beg=True
     # plotting
     ax = _check_ax(ax)
     collections = [[None for tmpj in to_state] for tmpi in from_state]
-    for f, t in permutations(from_state, to_state):
-        if f == t:
-            continue
-        msk = BurstSort._trans_mask(model, f, t, include_beg=include_beg)
-        collections[i][j] = ax.hist(model.dwell_dur[msk], **kwarg_mat[f][t])
+    for (i, f), (j, t) in product(enumerate(from_state), enumerate(to_state)):
+        msk = BurstSort._get_dwell_trans_mask(model, (f, t), include_beg=include_beg)
+        collections[i][j] = ax.hist(model.dwell_dur[msk], **kwarg_mat[i][j])
     return collections
         
 
 def dwell_dur_hist(model, ax=None, states=None, state_kwargs=None, label_kwargs=None, 
                    dwell_pos=None, **kwargs):
+    """
+    Plot histogram of dwell durations per state
+
+    Parameters
+    ----------
+    model : H2MM_result, H2MM_list, BurstData
+        Model for which to plot histogram of dwell durations.
+    ax : matplotlib.axes._subplots.AxesSubplot, optional
+        Axes to draw histogram(s) in. The default is None.
+    states : numpy.ndarray, optional
+        Which states to plot, if None, all states plotted. 
+        The default is None.
+    state_kwargs : list of kwarg dicts, optional
+        Kwargs passed per state. 
+        The default is None.
+    label_kwargs : dict, optional
+        Keyword arguments to pass to ax.label. The default is None
+    dwell_pos : int, list, tuple, numpy array or mask_generating callable, optional
+        Which dwell position(s) to include.If None, do not filter by burst position.
+        The default is None.
+    **kwargs : 
+        Universal kwargs for ax.hist.
+
+    Returns
+    -------
+    collections : list[matplotlib.container.BarContainer]
+        list of lists of bar containers produced by the ax.hist 
+        organized as [states][streams]
+
+    """
     in_kwargs = {'alpha':0.5, 'bins':20}
     in_kwargs.update(**kwargs)
     
@@ -1584,7 +1783,7 @@ def BICp_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,**kw
         list of collections produced by the scatter plot
 
     """
-    collections = _stat_disc_plot(model_list, 'BIC',highlight_ideal=highlight_ideal, ideal_kwargs=ideal_kwargs, ax=ax,**kwargs)
+    collections = _stat_disc_plot(model_list, 'BICp',highlight_ideal=highlight_ideal, ideal_kwargs=ideal_kwargs, ax=ax,**kwargs)
     return collections
 
 
@@ -1618,7 +1817,7 @@ def path_BIC_plot(model_list, highlight_ideal=False, ideal_kwargs=None, ax=None,
 
 
 def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, yscale='linear',
-                      normalize=False, **kwargs):
+                      raw_bin=True, normalize=False, **kwargs):
     """
     Plot the histogram of nanotimes of photons (in bursts) per stream.
     Usefull for visualizing the fluorescence decays, and deciding where to place
@@ -1641,6 +1840,9 @@ def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, yscale='l
         The argument passed to the ax.set_yscale function.
         Primary options are 'linear' (default) and 'log'.
         The default is 'linear'
+    raw_bin : bool, optional
+        Whether to plot the raw nanotime bin (True, default) or convert into units 
+        of ns (False). The default is True.
     normalize : bool, optional
         Whether to plot normalize the number of counts to the maximum per stream. 
         The default is False.
@@ -1682,6 +1884,8 @@ def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, yscale='l
     # calcualte the decay histogram
     hists = [np.bincount(nanos[index==idx], minlength=data.data.nanotimes_params[0]['tcspc_num_bins']) for idx in stream_id]
     nanotime_bin = np.arange(data.data.nanotimes_params[0]['tcspc_num_bins'])
+    if not raw_bin:
+        nanotime_bin *= data.data.nanotimes_params[0]['tcspc_unit'] * 1e9
     collections = list()
     for hist, stream, s_kwargs in zip(hists, streams, stream_kwargs):
         in_kwargs = kwargs.copy()
@@ -1695,7 +1899,10 @@ def raw_nanotime_hist(data, streams=None, stream_kwargs=None, ax=None, yscale='l
         collections.append(collection)
     leg = ax.legend()
     ax.set_yscale(yscale)
-    ax.set_xlabel("nanotime bin")
+    if raw_bin:
+        ax.set_xlabel("nanotime bin")
+    else:
+        ax.set_xlabel("nanotime (ns)")
     if normalize:
         ax.set_ylabel("normalized counts")
     else:
@@ -1763,7 +1970,7 @@ def state_nanotime_hist(model, states=None, state_kwargs=None,
             in_kwargs.update(kw_arr)
             x = np.arange(0,model.nanohist.shape[2],1)
             if not raw_bin:
-                x = x * model.parent.parent.data.nanotimes_params[0]['tcspc_unit']*1e3
+                x  = x * model.parent.parent.data.nanotimes_params[0]['tcspc_unit']*1e9
             y = model.nanohist[state, strm, :]/model.nanohist[state, strm, :].max() if normalize else model.nanohist[state, strm, :]
             collection = ax.plot(x, y, **in_kwargs)
             collections[-1].append(collection)
@@ -1773,13 +1980,14 @@ def state_nanotime_hist(model, states=None, state_kwargs=None,
         ax.set_ylabel("counts")
     ax.set_yscale(yscale)
     if raw_bin:
-        ax.set_xlabel("nanotime (ns)")
-    else:
         ax.set_xlabel("nanotime bin")
+    else:
+        ax.set_xlabel("nanotime (ns)")
     return collections
 
 
-def axline_irf_thresh(data, horizontal=False, stream_kwargs=None, ax=None, **kwargs):
+def axline_irf_thresh(data, horizontal=False, stream_kwargs=None, raw_bin=True, 
+                      ax=None, **kwargs):
     """
     Plot lines indicating the positions of the IRF thresholds
 
@@ -1793,6 +2001,9 @@ def axline_irf_thresh(data, horizontal=False, stream_kwargs=None, ax=None, **kwa
     stream_kwargs : list[dict], optional
         List of keyword arguments to pass the axvline or axhline per stream.
         The default is None.
+    raw_bin : bool, optional
+        Whether to plot the raw nanotime bin (True, default) or convert into units 
+        of ns (False). The default is True.
     ax : matplotlib.axes or None, optional
         The axes where the plot will be placed. The default is None.
     **kwargs : dict
@@ -1820,7 +2031,8 @@ def axline_irf_thresh(data, horizontal=False, stream_kwargs=None, ax=None, **kwa
         raise ValueError(f"stream_kwargs must have the same number of elements as photon streams in data, got {len(stream_kwargs)} and {len(data.ph_streams)}")
     else:
         stream_kwargs = (_update_ret(kwargs, kw) for kw in stream_kwargs)
-    lines = [axline(irf, **kw) for irf, kw in zip(data.irf_thresh, stream_kwargs)]
+    factor =  1 if raw_bin else data.data.nanotimes_params[0]['tcspc_unit'] * 1e9 
+    lines = [axline(irf*factor, **kw) for irf, kw in zip(data.irf_thresh, stream_kwargs)]
     return lines
 
 
@@ -2325,7 +2537,7 @@ def _find_burst(model, burst):
         Index 
 
     """
-    if np.issubdtype(type(burst), np.integer) :
+    if np.issubdtype(type(burst), np.integer):
         if burst >= len(model.parent.index):
             raise IndexError(f'Burst out of range for model with {len(model.parent.index)} bursts, and given {burst}')
         return burst
@@ -2353,7 +2565,8 @@ def _find_burst(model, burst):
 
 
 @_useideal
-def plot_burst_path(model, burst, param='E', ax=None, state_color=None, linewidth=None, stream=None,**kwargs):
+def plot_burst_path(model, burst, param='E', ax=None, state_color=None, 
+                    linewidth=None, stream=None, capstyle='round', **kwargs):
     """
     Plot the state trajectory of a burst in a model.
 
@@ -2417,7 +2630,7 @@ def plot_burst_path(model, burst, param='E', ax=None, state_color=None, linewidt
     linepath = linepath[:-1]
     pthc = np.array([pth, np.ones(pth.shape, dtype=int)*model.nstate]).astype(int).T.reshape(-1)[:-1]
     clr = [state_color[i] for i in pthc]
-    lc = LineCollection(linepath, color=clr, linewidth=linewidth, **kwargs)
+    lc = LineCollection(linepath, color=clr, linewidth=linewidth, capstyle=capstyle, **kwargs)
     ax.add_artist(lc)
     ax.set_xlim((times[0], times[-1]))
     return lc
@@ -2488,6 +2701,10 @@ def _stream_color_map(stream_map, index_red, streams, idx_keep, index_keep, name
             colors = index_red if nonefill else None
             
     return colors
+
+__stream_label = {frb.Ph_sel(Dex='Dem'):r'$D_{ex}D_{em}$', 
+                  frb.Ph_sel(Dex='Aem'):r'$D_{ex}A_{em}$', 
+                  frb.Ph_sel(Aex='Aem'):r'$A_{ex}A_{em}$'}
 
 def plot_burst_index(data, burst, ax=None, colapse_div=False, streams=None, 
                      stream_pos=None, stream_color=None, rng=None, invert=False, 
@@ -2618,7 +2835,7 @@ def plot_burst_index(data, burst, ax=None, colapse_div=False, streams=None,
     ret = ax.scatter(times, index_pos, c=colors, ec=edges,**kwargs)
     if stream_labels is True:
         if colapse_div or data.div_map[-1] == len(data.parent.ph_streams):
-            labels = [str(ph_sel) for ph_sel in streams]
+            labels = [__stream_label[ph_sel] for ph_sel in streams]
         else:
             labels = list(chain.from_iterable((f'{sel} {i}' for i, _ in enumerate(idx)) for sel, idx in zip(streams, index_keep)))
     elif isinstance(stream_labels, dict):
@@ -2641,7 +2858,7 @@ __stream_color = {frb.Ph_sel(Dex='Dem'):'g', frb.Ph_sel(Dex='Aem'):'r', frb.Ph_s
 
 @_useideal
 def plot_burstjoin(model, burst, ax=None, add_corrections=False, state_color=None,
-                   stream_color=None):
+                   stream_color=None, path_kwargs=None, index_kwargs=None):
     """
     Wrapper function plots a burst with E, S paths and burst photons.
 
@@ -2662,7 +2879,10 @@ def plot_burstjoin(model, burst, ax=None, add_corrections=False, state_color=Non
         Color for each stream, given as dict {stream:color} where stream is 
         fretbursts.Ph_sel and color is a matplotlib color specification. 
         The default is None.
-
+    path_kwargs : dict
+        Keyword arguments passed to plot_burst_path. The default is None
+    index_kwargs : dict
+        Keyword arguments passed to plot_burst_index. The default is None
     Returns
     -------
     None.
@@ -2670,10 +2890,14 @@ def plot_burstjoin(model, burst, ax=None, add_corrections=False, state_color=Non
     """
     ax = _check_ax(ax)
     burst = _find_burst(model, burst)
+    if path_kwargs is None:
+        path_kwargs = dict()
+    if index_kwargs is None:
+        index_kwargs = dict()
     E, S = ('E_corr', 'S_corr') if add_corrections else ('E', 'S')
     if model._hasE:
         axE = ax.twinx()
-        plot_burst_path(model, burst, ax=axE, param=E, state_color=state_color)
+        plot_burst_path(model, burst, ax=axE, param=E, state_color=state_color, **path_kwargs)
         Elim = [-1.0, 1.0] if model._hasS else [0.0, 1.0]
         axE.set_ylim(Elim)
         axE.yaxis.set_ticks_position('left')
@@ -2684,7 +2908,7 @@ def plot_burstjoin(model, burst, ax=None, add_corrections=False, state_color=Non
         axE.yaxis.set_label_coords(-0.15, 0.5, transform=axE.get_yaxis_transform())
     if model._hasS:
         axS = ax.twinx()
-        plot_burst_path(model, burst, ax=axS, param=S, state_color=state_color)
+        plot_burst_path(model, burst, ax=axS, param=S, state_color=state_color, **path_kwargs)
         Slim = [0.0, 2.0] if model._hasE else [0.0, 1.0]
         axS.set_ylim(Slim)
         axS.yaxis.set_ticks_position('left')
@@ -2696,6 +2920,7 @@ def plot_burstjoin(model, burst, ax=None, add_corrections=False, state_color=Non
     if stream_color is None:
         stream_color = {sel:__stream_color[sel] if sel in __stream_color else 'b' for sel in model.parent.parent.ph_streams}
     plot_burst_index(model.parent, burst, ax=ax, colapse_div=True, 
-                     stream_color=stream_color, invert=True, stream_labels=True)
+                     stream_color=stream_color, invert=True, stream_labels=True, 
+                     **index_kwargs)
     ax.yaxis.set_ticks_position('right')
     ax.set_ylim([0,1])
