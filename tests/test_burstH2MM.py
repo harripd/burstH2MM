@@ -10,6 +10,15 @@ import burstH2MM as bhm
 import H2MM_C as h2
 
 
+def new_plot(*args, **kwargs):
+    try:
+        plt.close('all')
+        fig, ax = plt.subplots(*args, **kwargs)
+    except:
+        fig, ax = plt.gcf(), plt.gca()
+    return fig, ax
+
+
 def all_less(a, m):
     if a is None:
         return True
@@ -287,7 +296,7 @@ def teest_ll_covar_trans(alex_hmm):
 @pytest.mark.parametrize("func", (bhm.ICL_plot, bhm.BIC_plot, bhm.BICp_plot, bhm.path_BIC_plot))
 def test_stat_disc_plot(alex_hmm, func):
     func(alex_hmm.models)
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     func(alex_hmm.models, ax=ax, highlight_ideal=True)
     plt.close('all')
 
@@ -298,12 +307,12 @@ def test_dwell_hist(alex_hmm, func):
     if func is not bhm.dwell_tau_hist or alex_hmm.data.lifetime:
         func(alex_hmm.models)
         alex_hmm.models.ideal = 2
-        fig, ax = plt.subplots()
+        fig, ax = new_plot()
         func(alex_hmm.models, ax=ax, bins=np.arange(0,1,0.2), states=np.array([1,0]))
-        fig, ax = plt.subplots()
+        fig, ax = new_plot()
         func(alex_hmm.models, ax=ax, bins=np.arange(0,1,0.2))
         if func is bhm.dwell_tau_hist:
-            fig, ax = plt.subplots()
+            fig, ax = new_plot()
             func(alex_hmm.models, ax=ax, bins=np.arange(0,1,0.2), 
                  streams=[frb.Ph_sel(Dex='Aem'), frb.Ph_sel(Aex='Aem')])
     plt.close('all')
@@ -314,14 +323,14 @@ def test_dwell_scatter(alex_hmm, func):
     if alex_hmm.data.lifetime or func is not bhm.dwell_E_tau_scatter:
         func(alex_hmm.models[2])
         alex_hmm.models.ideal = 2
-        fig, ax = plt.subplots()
+        fig, ax = new_plot()
         func(alex_hmm.models, ax=ax, s=10, states=np.array([1,0]))
-        fig, ax = plt.subplots()
+        fig, ax = new_plot()
         func(alex_hmm.models, ax=ax, plot_type='kde', add_corrections=True)
         if alex_hmm.data.lifetime:
             func(alex_hmm.div_models['twodiv'][2])
             alex_hmm.div_models['twodiv'].ideal = 2
-            fig, ax = plt.subplots()
+            fig, ax = new_plot()
             func(alex_hmm.div_models['twodiv'], ax=ax, s=10, states=np.array([1,0]))
             fig, ax = plt.subplots()
             func(alex_hmm.div_models['twodiv'], ax=ax, plot_type='kde', add_corrections=True)
@@ -332,20 +341,20 @@ def test_dwell_scatter(alex_hmm, func):
 
 
 def test_burst_ES_scatter(alex_hmm):
-    fig, ax = plt.subplots(figsize=(6,6))
+    fig, ax = new_plot(figsize=(6,6))
     bhm.burst_ES_scatter(alex_hmm.models[2], ax=ax)
-    fig, ax = plt.subplots(figsize=(6,6))
+    fig, ax = new_plot(figsize=(6,6))
     bhm.burst_ES_scatter(alex_hmm.models[2], flatten_dynamics=True, ax=ax)
     plt.close('all')
     
 def test_arrow(alex_hmm):
     bhm.trans_arrow_ES(alex_hmm.models[2])
     alex_hmm.ideal = 2
-    fig, ax = plt.subplots(figsize=(6,6))
+    fig, ax = new_plot(figsize=(6,6))
     bhm.dwell_ES_scatter(alex_hmm.models, ax=ax)
     bhm.trans_arrow_ES(alex_hmm.models, states=((0,1),(1,2)), fstring='3.1f')
     plt.close('all')
-    fig, ax = plt.subplots(figsize=(6,6))
+    fig, ax = new_plot(figsize=(6,6))
     bhm.dwell_ES_scatter(alex_hmm.models, ax=ax)
     bhm.trans_arrow_ES(alex_hmm.models, positions=np.array([[0.5, 0.2, 0.4],[0.1, 0.5, 0.6],[0.7,0.5,0.6]]))
     plt.close('all')
@@ -353,7 +362,7 @@ def test_arrow(alex_hmm):
 def test_scatter_ES(alex_hmm):
     bhm.scatter_ES(alex_hmm.models[3])
     alex_hmm.ideal = 3
-    fig, ax = plt.subplots(figsize=(6,6))
+    fig, ax = new_plot(figsize=(6,6))
     bhm.dwell_ES_scatter(alex_hmm.models, ax=ax)
     bhm.scatter_ES(alex_hmm.models, states=np.array([1,2]))
     plt.close('all')
@@ -365,7 +374,7 @@ def test_scatter_ES(alex_hmm):
 def test_dwell_trans_durs(alex_hmm, from_state, to_state):
     if all_less(from_state, 3) and all_less(to_state, 3):        
         bhm.dwell_trans_dur_hist(alex_hmm.models[2], from_state=from_state, to_state=to_state)
-        fig, ax = plt.subplots()
+        fig, ax = new_plot()
         bhm.dwell_trans_dur_hist(alex_hmm.models[2], from_state=from_state, to_state=to_state, ax=ax)
         
     else:
@@ -404,14 +413,14 @@ def test_dwell_size(alex_hmm):
 
 @pytest.mark.parametrize('func', (bhm.axline_E, bhm.axline_S))
 def test_axlines(alex_hmm, func):
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     bhm.dwell_E_hist(alex_hmm.models[2], ax=ax)
     func(alex_hmm.models[2], ax=ax, states=np.array([2,1]), state_kwargs=[{'alpha':0.9}, {'alpha':0.8}])
     plt.close('all')
 
 
 def test_raw_nanohist(alex_hmm):
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     if alex_hmm.data.lifetime:
         bhm.raw_nanotime_hist(alex_hmm, ax=ax)
         bhm.axline_irf_thresh(alex_hmm, ax=ax)
@@ -422,7 +431,7 @@ def test_raw_nanohist(alex_hmm):
         
 
 def test_state_nanohist(alex_hmm):
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     if alex_hmm.data.lifetime:
         bhm.state_nanotime_hist(alex_hmm.models[2], ax=ax)
     else:
@@ -432,30 +441,30 @@ def test_state_nanohist(alex_hmm):
 
 @pytest.mark.parametrize('func', (bhm.ll_E_scatter, bhm.ll_S_scatter))
 def test_ll_scatter_scatter(alex_hmm, func):
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     func(alex_hmm.models[2], 0, ax=ax)
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     func(alex_hmm.models[2], 1, ax=ax, rng=3)
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     func(alex_hmm.models[2], 2, ax=ax, rng=(0.2,0.3))
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     func(alex_hmm.models[2], 1, ax=ax, rng=np.arange(0.1,0.5,0.01))
     plt.close('all')
 
 def test_ll_trans_scatter(alex_hmm):
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     bhm.ll_trans_scatter(alex_hmm.models[2], 0,1, ax=ax)
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     bhm.ll_trans_scatter(alex_hmm.models[2], 0,1, ax=ax, rng=np.logspace(-8, -6, 10))
     plt.close('all')
 
 
 def test_plot_burst_index(alex_hmm):
     for tp in ('states','transitions','longest','photons', 0):    
-        fig, ax = plt.subplots()
+        fig, ax = new_plot()
         bhm.plot_burst_index(alex_hmm.models[2], tp, ax=ax)
         plt.close('all')
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     bhm.plot_burst_index(alex_hmm.models[2], 'states', ax=ax, streams=[frb.Ph_sel(Dex='Dem'),frb.Ph_sel(Dex='Aem')],
                          stream_pos={frb.Ph_sel(Dex='Dem'):0.2, frb.Ph_sel(Dex='Aem'):0.7}, 
                          stream_color={frb.Ph_sel(Dex='Dem'):'c', frb.Ph_sel(Dex='Aem'):'r'},
@@ -463,38 +472,38 @@ def test_plot_burst_index(alex_hmm):
                          stream_labels=False,
                          s=20)
     plt.close('all')
-    fig, ax = plt.subplots()
+    fig, ax = new_plot()
     bhm.plot_burst_index(alex_hmm.models[2], 'states', invert=True, rng=(1,3))
     plt.close('all')
     if alex_hmm.data.lifetime:
-        fig, ax = plt.subplots()
+        fig, ax = new_plot()
         bhm.plot_burst_index(alex_hmm.div_models['twodiv'], 'states', colapse_div=True)
         plt.close('all')
-        fig, ax = plt.subplots()
+        fig, ax = new_plot()
         bhm.plot_burst_index(alex_hmm.div_models['twodiv'], 'states', 
                              stream_pos={i:0.1*(i+1) for i in range(alex_hmm.div_models['twodiv'].ndet)})
         plt.close('all')
 
 def test_plot_burst_path(alex_hmm):
     for tp in ('states','transitions','longest','photons', 0):    
-        fig, ax = plt.subplots()
+        fig, ax = new_plot()
         bhm.plot_burst_path(alex_hmm.models[2], 'states', param='E', ax=ax, 
                             state_color=['r','g','b','k'], linewidth=[1,2,3,4])
         plt.close('all')
-        fig, ax = plt.subplots()
+        fig, ax = new_plot()
         bhm.plot_burst_path(alex_hmm.models[2], 'states', param='S', ax=ax, 
                             state_color=['r','g','b'], linewidth=[1,2,3,4])
         plt.close('all')
         if alex_hmm.data.lifetime:
-            fig, ax = plt.subplots()
+            fig, ax = new_plot()
             bhm.plot_burst_path(alex_hmm.div_models['twodiv'][2], 'states',param='E', ax=ax, 
                                 state_color=['r','g','b'], linewidth=[1,2,3,4])
             plt.close('all')
-            fig, ax = plt.subplots()
+            fig, ax = new_plot()
             bhm.plot_burst_path(alex_hmm.div_models['twodiv'][2], 'states',param='state_nano_mean', ax=ax, 
                                 state_color=['r','g','b'], linewidth=[1,2,3,4], stream=0)
             plt.close('all')
-            fig, ax = plt.subplots()
+            fig, ax = new_plot()
             bhm.plot_burst_path(alex_hmm.div_models['twodiv'][2], 'states',param='state_nano_mean', ax=ax, 
                                 state_color=['r','g','b'], linewidth=[1,2,3,4], stream=frb.Ph_sel(Dex='Aem'))
             plt.close('all')
