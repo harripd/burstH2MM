@@ -43,7 +43,7 @@ author = 'Paul David Harris'
 # The full version, including alpha/beta/rc tags
 from importlib.metadata import version as get_version
 release:str = get_version('burstH2MM')
-version:str = '.'.join(release.split('.')[:2]
+version:str = '.'.join(release.split('.'))[:2]
 
 
 # -- General configuration ---------------------------------------------------
