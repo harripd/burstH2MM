@@ -5,11 +5,12 @@ build:
   tools:
     python: "3.12"
 python:
-  requirements: docs/source/requirements.txt
-  method: pip
-  path: .
-  extra_requirements:
-    - docs
+  install:
+    - requirements: docs/source/requirements.txt
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
 
 sphinx:
   builder: html
