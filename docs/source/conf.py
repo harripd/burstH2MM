@@ -41,7 +41,9 @@ copyright = '2022, Paul David Harris'
 author = 'Paul David Harris'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.7'
+from importlib.metadata import version as get_version
+release:str = get_version('burstH2MM')
+version:str = '.'.join(release.split('.')[:2]
 
 
 # -- General configuration ---------------------------------------------------

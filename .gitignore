@@ -5,3 +5,5 @@ burstH2MM/__pycache__
 .ipynb_checkpoints
 docs/source/noteboks/.ipynb_checkpoints
 *.hdf5
+build/
+dist/

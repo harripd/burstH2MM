@@ -4,4 +4,8 @@ from .Masking import *
 from . import Simulations as sim
 from . import ModelError as me
 
-__version__ = "0.1.7"
+from importlib.metadata import version, PackageNotFoundError
+try:
+    __version__ = version('burstH2MM')
+except PackageNotFoundError:
+    print("cannot find version")
