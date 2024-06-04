@@ -9,28 +9,46 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.8", "3.9", "3.10", "3.12"]
+        python-version: ["3.8", "3.9", "3.10"]
 
     steps:
       - uses: actions/checkout@v4
       - name: Setup Python ${{matrix.python-version}}
         uses: actions/setup-python@v4
         with:
-          python-version: ${{matrix.python-version}}
-      - name: Install dependencies
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          activate-environment: test
+          channels: conda-forge
+          python-version: ${{ matrix.python-version }}
+      - name: Upgrade pip
+        shell: bash -l {0}
+        run: python -m pip install --upgrade pip
+      - name: MacOS install hdf5 dependencies
+        if: runner.os == 'macOS'
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install pytest numpy cython pandas matplotlib seaborn lmfit h2mm-c
-          python -m pip install fretbursts
+          brew install hdf5
+          export HDF5_DIR=/usr/local/
+          export BLOSC_DIR=/usr/local/
+      - name: Install Dependencies
+        shell: bash -l {0}
+        run: |
+          conda install cython numpy numba nbconvert pytest jupyter scipy pandas matplotlib pytables phconvert lmfit seaborn setuptools build pyqt fretbursts h2mm-c
       - name: Download Files Unix
         if: runner.os != 'Windows'
+        shell: bash -l {0}
         run: |
           wget -N https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5
           wget -N https://figshare.com/ndownloader/files/4858417 -O HairPin3_RT_400mM_NaCl_A_31_TA.hdf5
       - name: Download files Windows
         if: runner.os == 'Windows'
+        shell: bash -l {0}
         run: |
            curl.exe -L --output HP3_TE300_SPC630.hdf5 --url https://zenodo.org/record/5902313/files/HP3_TE300_SPC630.hdf5
            curl.exe -L --output HairPin3_RT_400mM_NaCl_A_31_TA.hdf5 --url https://figshare.com/ndownloader/files/4858417
       - name: Test with pytest
+        shell: bash -l {0}
         run: python -m pytest
