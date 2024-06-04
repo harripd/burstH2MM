@@ -80,7 +80,6 @@ exclude_patterns = ['notebooks/*','**.ipynb_checkpoints' ]
 #
 html_theme = 'pydata_sphinx_theme'
 html_logo = 'images/logo.svg'
-html_theme_options = {'logo':{'image_light':'images/logo.svg', 'image_dark':'images/logo.svg', f'alt_text':'burstH2MM {version'}}
 html_favicon = 'images/logo.ico'
 
 # Add any paths that contain custom static files (such as style sheets) here,
